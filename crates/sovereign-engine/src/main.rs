@@ -33,6 +33,7 @@ mod auditor;
 mod sector29;
 mod skva;
 mod codegen;
+mod gpu_dispatch;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -737,6 +738,18 @@ fn main() {
         let mut rng = rand::thread_rng();
         let start = std::time::Instant::now();
 
+        // Try to initialize GPU for accelerated evaluation
+        let gpu_evolver = match gpu_dispatch::GpuEvolver::init(EVOLVE_VM_PTX) {
+            Ok(g) => {
+                println!("[IGNITE] GPU acceleration: {} — ONLINE", g.name);
+                Some(g)
+            }
+            Err(e) => {
+                println!("[IGNITE] GPU unavailable ({}), using CPU", e);
+                None
+            }
+        };
+
         for cycle in 0..cycles {
             println!();
             println!("┌─ CYCLE {}/{} ──────────────────────────────────────────┐", cycle + 1, cycles);
@@ -794,19 +807,50 @@ fn main() {
                 };
 
                 for gidx in 0..generations {
-                    // Evaluate all organisms on CPU
-                    for org in population.iter_mut() {
-                        let gbin = build_gbin(&org.instructions);
-                        if let Ok(mut prog) = GlyphProgram::from_gbin(&gbin) {
-                            let result = prog.execute_cpu();
-                            org.fitness = result.abs();
-                            org.generation = gidx;
+                    // Evaluate all organisms — GPU batch or CPU serial
+                    if let Some(ref gpu) = gpu_evolver {
+                        // GPU: evaluate entire population in one kernel launch
+                        let inst_vecs: Vec<Vec<GlyphInst>> = population.iter()
+                            .map(|org| org.instructions.clone())
+                            .collect();
+                        let max_len = inst_vecs.iter().map(|v| v.len()).max().unwrap_or(1);
+                        match gpu.evaluate_batch(&inst_vecs, max_len) {
+                            Ok(results) => {
+                                for (org, &result) in population.iter_mut().zip(results.iter()) {
+                                    org.fitness = result.abs();
+                                    org.generation = gidx;
+                                }
+                            }
+                            Err(_) => {
+                                // GPU eval failed — fall back to CPU for this generation
+                                for org in population.iter_mut() {
+                                    let gbin = build_gbin(&org.instructions);
+                                    if let Ok(mut prog) = GlyphProgram::from_gbin(&gbin) {
+                                        let result = prog.execute_cpu();
+                                        org.fitness = result.abs();
+                                        org.generation = gidx;
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // CPU: evaluate one-at-a-time
+                        for org in population.iter_mut() {
+                            let gbin = build_gbin(&org.instructions);
+                            if let Ok(mut prog) = GlyphProgram::from_gbin(&gbin) {
+                                let result = prog.execute_cpu();
+                                org.fitness = result.abs();
+                                org.generation = gidx;
+                            }
                         }
                     }
 
-                    // Sort by fitness (descending)
-                    population.sort_by(|a, b|
-                        b.fitness.partial_cmp(&a.fitness).unwrap_or(std::cmp::Ordering::Equal));
+                    // Sort by fitness (descending, NaN-safe)
+                    population.sort_by(|a, b| {
+                        let fa = if a.fitness.is_finite() { a.fitness } else { f32::NEG_INFINITY };
+                        let fb = if b.fitness.is_finite() { b.fitness } else { f32::NEG_INFINITY };
+                        fb.partial_cmp(&fa).unwrap_or(std::cmp::Ordering::Equal)
+                    });
 
                     if population[0].fitness > best.fitness {
                         best = population[0].clone();
