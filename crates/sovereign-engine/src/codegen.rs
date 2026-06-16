@@ -214,6 +214,16 @@ pub fn generate(strategy: Strategy, seed: u64, min_ops: usize, max_ops: usize) -
 
 /// Generate a batch of programs and write them to the Will inbox
 pub fn seed_inbox(inbox_path: &Path, count: usize, base_seed: u64) -> Vec<String> {
+    seed_inbox_with_archive(inbox_path, count, base_seed, None)
+}
+
+/// Generate programs, optionally seeding from archived winners
+pub fn seed_inbox_with_archive(
+    inbox_path: &Path,
+    count: usize,
+    base_seed: u64,
+    archived_instructions: Option<&[Vec<genlex_types::GlyphInst>]>,
+) -> Vec<String> {
     let strategies = [
         Strategy::Arithmetic,
         Strategy::Resonance,
@@ -226,16 +236,47 @@ pub fn seed_inbox(inbox_path: &Path, count: usize, base_seed: u64) -> Vec<String
     let mut paths = Vec::new();
 
     for i in 0..count {
-        let strategy = strategies[i % strategies.len()];
         let seed = base_seed + i as u64;
-        let program = generate(strategy, seed, 4, 12);
 
-        let filename = format!("gen_{:04}_{:?}.gbin", i, strategy);
+        // If we have archived winners, splice some of them into new programs
+        let program = if let Some(archive) = archived_instructions {
+            if !archive.is_empty() && i % 3 == 0 {
+                // Every 3rd program: use archived winner as seed, assemble as-is
+                let winner_idx = i / 3 % archive.len();
+                let winner = &archive[winner_idx];
+                let gbin = build_gbin_from_instructions(winner);
+                GeneratedProgram {
+                    source: format!("; Seeded from archive entry #{}", winner_idx),
+                    binary: gbin,
+                    strategy: Strategy::Mixed,
+                    instruction_count: winner.len(),
+                }
+            } else {
+                let strategy = strategies[i % strategies.len()];
+                generate(strategy, seed, 4, 12)
+            }
+        } else {
+            let strategy = strategies[i % strategies.len()];
+            generate(strategy, seed, 4, 12)
+        };
+
+        let tag = if archived_instructions.is_some() && i % 3 == 0 {
+            "Seeded"
+        } else {
+            match program.strategy {
+                Strategy::Arithmetic => "Arithmetic",
+                Strategy::Resonance => "Resonance",
+                Strategy::Iterative => "Iterative",
+                Strategy::Mixed => "Mixed",
+            }
+        };
+
+        let filename = format!("gen_{:04}_{}.gbin", i, tag);
         let path = inbox_path.join(&filename);
 
         std::fs::write(&path, &program.binary).unwrap();
-        println!("[CODEGEN] {} | {:?} | {} inst | {} bytes",
-            filename, program.strategy,
+        println!("[CODEGEN] {} | {} | {} inst | {} bytes",
+            filename, tag,
             program.instruction_count, program.binary.len());
 
         paths.push(path.to_string_lossy().to_string());
@@ -244,3 +285,32 @@ pub fn seed_inbox(inbox_path: &Path, count: usize, base_seed: u64) -> Vec<String
     println!("[CODEGEN] Seeded {} programs into {:?}", count, inbox_path);
     paths
 }
+
+/// Build a .gbin binary from raw GlyphInst instructions
+fn build_gbin_from_instructions(instructions: &[genlex_types::GlyphInst]) -> Vec<u8> {
+    let mut data = Vec::with_capacity(16 + instructions.len() * 4 + 32);
+
+    // Header (16 bytes)
+    data.extend_from_slice(b"GBIN");
+    data.extend_from_slice(&1u32.to_le_bytes());  // version
+    data.extend_from_slice(&(instructions.len() as u32).to_le_bytes());
+    data.extend_from_slice(&1u32.to_le_bytes());   // exec_flags = GPU
+
+    // Instructions
+    for inst in instructions {
+        data.extend_from_slice(&inst.to_bytes());
+    }
+
+    // Footer signature (32 bytes)
+    let sig: [u8; 32] = {
+        let mut s = [0u8; 32];
+        let anchor_bytes = SOVEREIGN_ANCHOR.to_le_bytes(); // f32 = 4 bytes
+        s[0..4].copy_from_slice(&anchor_bytes);
+        s[8..12].copy_from_slice(b"SOVR");
+        s
+    };
+    data.extend_from_slice(&sig);
+
+    data
+}
+
