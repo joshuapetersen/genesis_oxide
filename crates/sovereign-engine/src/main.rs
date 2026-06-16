@@ -36,6 +36,7 @@ mod codegen;
 mod gpu_dispatch;
 mod forge;
 mod nlp;
+mod ace;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -1242,9 +1243,30 @@ fn main() {
 
         engine.print_results(&result);
 
+        // ── ACE TOKEN PROCESSING ──
+        let t_ace = Instant::now();
+        let mut ace_engine = ace::AceTokenEngine::new();
+        let intent = nlp::SovereignNlp::classify_intent(&query_text);
+        let tokens = ace_engine.tokenize_sentence(&query_text, &intent.primary);
+
+        let mut bank = ace::TokenBankSystem::new();
+        let triangulation = bank.ingest(&tokens, &query_text);
+
+        let hypervisor = ace::AceHypervisor::new();
+        let validation = hypervisor.validate_nlp(&result);
+
+        let ace_ms = t_ace.elapsed().as_secs_f64() * 1000.0;
+
+        ace::print_ace_report(&tokens, &triangulation, &validation);
+
+        if validation.valid {
+            let receipt = hypervisor.sign_result(&result);
+            println!("[ACE] Signed receipt: {}...{}", &receipt[..20], &receipt[receipt.len()-16..]);
+        }
+
         println!();
-        println!("[N-LP] Query latency: {:.1}ms ({} organisms searched)",
-            query_ms, ga.entries.len());
+        println!("[N-LP] Query latency: {:.1}ms | ACE latency: {:.3}ms | Total: {:.1}ms ({} organisms)",
+            query_ms, ace_ms, query_ms + ace_ms, ga.entries.len());
 
         // Autopoietic feedback loop: if drift detected, forge the query
         if !result.verified && args.iter().any(|s| s == "--autopoiesis") {
