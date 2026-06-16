@@ -942,12 +942,15 @@ fn main() {
         eprintln!("  sovereign --batch <dir>                      — batch multi-program");
         eprintln!("  sovereign --will <inbox>                     — Engine 283: autonomous evolution");
         eprintln!("  sovereign --will <inbox> --daemon             — Engine 283: continuous loop");
+        eprintln!("  sovereign --ignite                            — Engine 281: codegen -> evolve -> archive");
         eprintln!("  sovereign --audit <dir>                       — self-audit: scan + cluster");
         eprintln!();
         eprintln!("  Flags:");
         eprintln!("    --archive-path <path>   — custom archive location");
         eprintln!("    --seed-from-vault       — seed evolution from archived organisms");
         eprintln!("    --generations <N>       — evolution generations (default: 100)");
+        eprintln!("    --cycles <N>            — ignition cycles (default: 10)");
+        eprintln!("    --batch-size <N>        — programs per ignition cycle (default: 8)");
         std::process::exit(1);
     }
 
