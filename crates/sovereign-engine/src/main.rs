@@ -37,6 +37,7 @@ mod gpu_dispatch;
 mod forge;
 mod nlp;
 mod ace;
+mod crawler;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -1291,6 +1292,44 @@ fn main() {
                 engine.print_results(&r);
                 println!("[N-LP] {:.1}ms", t2.elapsed().as_secs_f64() * 1000.0);
             }
+        }
+
+        return;
+    }
+
+    // ── CRAWLER MODE (Recursive Directory Forge) ──
+    if let Some(crawl_root) = find_arg(&args, "--forge-dir") {
+        let mut config = crawler::CrawlConfig::new(&crawl_root);
+
+        // Optional: custom extensions
+        if let Some(ext_str) = find_arg(&args, "--extensions") {
+            config = config.with_extensions(&ext_str);
+        }
+
+        // Optional: max file size
+        if let Some(size_str) = find_arg(&args, "--max-size") {
+            if let Ok(size) = size_str.parse::<u64>() {
+                config = config.with_max_size(size);
+            }
+        }
+
+        // Optional: output directory
+        if let Some(out) = find_arg(&args, "--output") {
+            config = config.with_output(&out);
+        }
+
+        // Optional: dry run
+        if args.iter().any(|s| s == "--dry-run") {
+            config = config.with_dry_run(true);
+        }
+
+        let mut c = crawler::SovereignCrawler::new(config);
+        let stats = c.crawl();
+
+        if !args.iter().any(|s| s == "--dry-run") && stats.files_forged > 0 {
+            println!();
+            println!("[CRAWLER] {} organisms forged. Run: sovereign --ignite to evolve them.",
+                stats.files_forged);
         }
 
         return;
