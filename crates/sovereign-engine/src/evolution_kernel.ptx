@@ -3,9 +3,12 @@
 .address_size 64
 
 // ════════════════════════════════════════════════════════════════
-// EVOLUTION VM KERNEL — Multi-Program Parallel Execution
+// EVOLUTION VM KERNEL v2 — Multi-Program Parallel Execution
 // ════════════════════════════════════════════════════════════════
 // Each thread runs a DIFFERENT glyph program (different instruction stream)
+// Proper register file indexing via predicated moves (from glyph_vm.ptx)
+// Cycle limit: 10,000 to prevent infinite loops from mutated programs
+//
 // programs:  u32[N * inst_len] — N concatenated programs, each inst_len long
 // inst_len:  u32 — instructions per program
 // output:    f32[N] — one result per thread (r0 after execution)
@@ -19,12 +22,14 @@
 )
 {
     .reg .u32   %gtid, %nthr, %inst_len, %pc, %opcode, %ra, %rb, %tmp_u;
+    .reg .u32   %cycles, %max_cycles;
     .reg .u64   %prog_base, %out_base, %addr;
-    .reg .f32   %regs<16>;
-    .reg .f32   %tmp, %anchor, %one, %imm;
-    .reg .pred  %p, %pflag;
+    .reg .u32   %inst_word;
+    .reg .f32   %r0, %r1, %r2, %r3, %r4, %r5, %r6, %r7;
+    .reg .f32   %tmp, %tmp2, %anchor, %acc, %mag;
+    .reg .pred  %p, %ploop, %phalt, %flag;
 
-    // Global thread ID
+    // Global thread ID = blockIdx.x * blockDim.x + threadIdx.x
     mov.u32     %tmp_u, %ctaid.x;
     mov.u32     %gtid, %ntid.x;
     mov.u32     %pc, %tid.x;
@@ -46,163 +51,319 @@
     add.u64      %prog_base, %prog_base, %addr;
 
     // Initialize registers to 0
-    mov.f32     %regs0, 0f00000000;
-    mov.f32     %regs1, 0f00000000;
-    mov.f32     %regs2, 0f00000000;
-    mov.f32     %regs3, 0f00000000;
-    mov.f32     %regs4, 0f00000000;
-    mov.f32     %regs5, 0f00000000;
-    mov.f32     %regs6, 0f00000000;
-    mov.f32     %regs7, 0f00000000;
-    mov.f32     %regs8, 0f00000000;
-    mov.f32     %regs9, 0f00000000;
-    mov.f32     %regs10, 0f00000000;
-    mov.f32     %regs11, 0f00000000;
-    mov.f32     %regs12, 0f00000000;
-    mov.f32     %regs13, 0f00000000;
-    mov.f32     %regs14, 0f00000000;
-    mov.f32     %regs15, 0f00000000;
+    mov.f32     %r0, 0f00000000;
+    mov.f32     %r1, 0f00000000;
+    mov.f32     %r2, 0f00000000;
+    mov.f32     %r3, 0f00000000;
+    mov.f32     %r4, 0f00000000;
+    mov.f32     %r5, 0f00000000;
+    mov.f32     %r6, 0f00000000;
+    mov.f32     %r7, 0f00000000;
 
-    // SOVEREIGN_ANCHOR = 1.092777 ≈ 0x3F8BE01E
+    // SOVEREIGN_ANCHOR = 1.092777037037037 = 0x3F8BE01E
     mov.f32     %anchor, 0f3F8BE01E;
-    mov.f32     %one, 0f3F800000;
 
-    // Dispatch loop
+    // Cycle limit (prevents infinite loops from mutated programs)
+    mov.u32     %cycles, 0;
+    mov.u32     %max_cycles, 10000;
+
+    // Clear flag
     mov.u32     %pc, 0;
+    setp.eq.u32 %flag, %pc, %pc;
+
+// ── DISPATCH LOOP ──────────────────────────────────────────
 
 FETCH:
-    setp.ge.u32  %p, %pc, %inst_len;
-    @%p bra      DONE;
+    // Cycle limit check
+    add.u32     %cycles, %cycles, 1;
+    setp.ge.u32 %p, %cycles, %max_cycles;
+    @%p bra     DONE;
 
-    // Load instruction: prog_base[pc]
-    cvt.u64.u32  %addr, %pc;
-    shl.b64      %addr, %addr, 2;
-    add.u64      %addr, %prog_base, %addr;
-    ld.global.u32 %tmp_u, [%addr];
+    setp.ge.u32 %ploop, %pc, %inst_len;
+    @%ploop bra DONE;
 
-    // Decode: opcode = byte0, ra = byte1 & 0xF, rb = byte2 & 0xF
-    and.b32     %opcode, %tmp_u, 0xFF;
-    shr.b32     %ra, %tmp_u, 8;
-    and.b32     %ra, %ra, 0x0F;
-    shr.b32     %rb, %tmp_u, 16;
-    and.b32     %rb, %rb, 0x0F;
+    // Fetch instruction word at prog_base[pc*4]
+    mul.lo.u32  %opcode, %pc, 4;
+    cvt.u64.u32 %addr, %opcode;
+    add.u64     %addr, %prog_base, %addr;
+    ld.global.u32 %inst_word, [%addr];
 
-    // ── HALT (0xFF) ──
-    setp.eq.u32  %p, %opcode, 0xFF;
-    @%p bra      DONE;
+    // Decode: [opcode:8][ra:4+4][rb:4+4][flags:8]
+    and.b32     %opcode, %inst_word, 255;
+    shr.u32     %ra, %inst_word, 8;
+    and.b32     %ra, %ra, 15;
+    shr.u32     %rb, %inst_word, 16;
+    and.b32     %rb, %rb, 15;
 
-    // ── ADD (0x11): regs[ra] += regs[rb] ──
-    setp.eq.u32  %p, %opcode, 0x11;
-    @%p bra      DO_ADD;
+    // === HALT (0xFF) ===
+    setp.eq.u32 %phalt, %opcode, 255;
+    @%phalt bra DONE;
 
-    // ── MUL (0x12) ──
-    setp.eq.u32  %p, %opcode, 0x12;
-    @%p bra      DO_MUL;
+    // === NOP (0x00) ===
+    setp.eq.u32 %p, %opcode, 0;
+    @%p bra     NEXT;
 
-    // ── SUB (0x13) ──
-    setp.eq.u32  %p, %opcode, 0x13;
-    @%p bra      DO_SUB;
+    // === LOAD_IMM (0x18) ===
+    setp.ne.u32 %p, %opcode, 24;
+    @%p bra     SKIP_LI;
+    add.u32     %pc, %pc, 1;
+    mul.lo.u32  %tmp_u, %pc, 4;
+    cvt.u64.u32 %addr, %tmp_u;
+    add.u64     %addr, %prog_base, %addr;
+    ld.global.u32 %inst_word, [%addr];
+    mov.b32     %tmp, %inst_word;
+    setp.eq.u32 %p, %ra, 0; @%p mov.f32 %r0, %tmp;
+    setp.eq.u32 %p, %ra, 1; @%p mov.f32 %r1, %tmp;
+    setp.eq.u32 %p, %ra, 2; @%p mov.f32 %r2, %tmp;
+    setp.eq.u32 %p, %ra, 3; @%p mov.f32 %r3, %tmp;
+    setp.eq.u32 %p, %ra, 4; @%p mov.f32 %r4, %tmp;
+    setp.eq.u32 %p, %ra, 5; @%p mov.f32 %r5, %tmp;
+    setp.eq.u32 %p, %ra, 6; @%p mov.f32 %r6, %tmp;
+    setp.eq.u32 %p, %ra, 7; @%p mov.f32 %r7, %tmp;
+    bra         NEXT;
+SKIP_LI:
 
-    // ── DIV (0x14) ──
-    setp.eq.u32  %p, %opcode, 0x14;
-    @%p bra      DO_DIV;
+    // === LOAD_CONST (0x10) ===
+    setp.ne.u32 %p, %opcode, 16;
+    @%p bra     SKIP_LC;
+    cvt.rn.f32.u32 %tmp, %rb;
+    mul.f32     %tmp, %tmp, 0f3C23D70A;
+    setp.eq.u32 %p, %ra, 0; @%p mov.f32 %r0, %tmp;
+    setp.eq.u32 %p, %ra, 1; @%p mov.f32 %r1, %tmp;
+    setp.eq.u32 %p, %ra, 2; @%p mov.f32 %r2, %tmp;
+    setp.eq.u32 %p, %ra, 3; @%p mov.f32 %r3, %tmp;
+    bra         NEXT;
+SKIP_LC:
 
-    // ── SQRT (0x15) ──
-    setp.eq.u32  %p, %opcode, 0x15;
-    @%p bra      DO_SQRT;
+    // --- REGISTER LOAD: r[ra] -> %tmp, r[rb] -> %tmp2 ---
+    mov.f32     %tmp, 0f00000000;
+    mov.f32     %tmp2, 0f00000000;
+    setp.eq.u32 %p, %ra, 0; @%p mov.f32 %tmp, %r0;
+    setp.eq.u32 %p, %ra, 1; @%p mov.f32 %tmp, %r1;
+    setp.eq.u32 %p, %ra, 2; @%p mov.f32 %tmp, %r2;
+    setp.eq.u32 %p, %ra, 3; @%p mov.f32 %tmp, %r3;
+    setp.eq.u32 %p, %ra, 4; @%p mov.f32 %tmp, %r4;
+    setp.eq.u32 %p, %ra, 5; @%p mov.f32 %tmp, %r5;
+    setp.eq.u32 %p, %ra, 6; @%p mov.f32 %tmp, %r6;
+    setp.eq.u32 %p, %ra, 7; @%p mov.f32 %tmp, %r7;
+    setp.eq.u32 %p, %rb, 0; @%p mov.f32 %tmp2, %r0;
+    setp.eq.u32 %p, %rb, 1; @%p mov.f32 %tmp2, %r1;
+    setp.eq.u32 %p, %rb, 2; @%p mov.f32 %tmp2, %r2;
+    setp.eq.u32 %p, %rb, 3; @%p mov.f32 %tmp2, %r3;
+    setp.eq.u32 %p, %rb, 4; @%p mov.f32 %tmp2, %r4;
+    setp.eq.u32 %p, %rb, 5; @%p mov.f32 %tmp2, %r5;
+    setp.eq.u32 %p, %rb, 6; @%p mov.f32 %tmp2, %r6;
+    setp.eq.u32 %p, %rb, 7; @%p mov.f32 %tmp2, %r7;
 
-    // ── SIN (0x16) ──
-    setp.eq.u32  %p, %opcode, 0x16;
-    @%p bra      DO_SIN;
+    // === ADD (0x11) ===
+    setp.ne.u32 %p, %opcode, 17;
+    @%p bra     SKIP_ADD;
+    add.f32     %tmp, %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_ADD:
 
-    // ── PULSE (0x17): regs[ra] *= ANCHOR ──
-    setp.eq.u32  %p, %opcode, 0x17;
-    @%p bra      DO_PULSE;
+    // === MUL (0x12) ===
+    setp.ne.u32 %p, %opcode, 18;
+    @%p bra     SKIP_MUL;
+    mul.f32     %tmp, %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_MUL:
 
-    // ── LOAD_IMM (0x18): regs[ra] = next_word_as_float ──
-    setp.eq.u32  %p, %opcode, 0x18;
-    @%p bra      DO_LOAD_IMM;
+    // === SUB (0x13) ===
+    setp.ne.u32 %p, %opcode, 19;
+    @%p bra     SKIP_SUB;
+    sub.f32     %tmp, %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_SUB:
 
-    // ── RESONATE (0x30) ──
-    setp.eq.u32  %p, %opcode, 0x30;
-    @%p bra      DO_RESONATE;
+    // === DIV (0x14) ===
+    setp.ne.u32 %p, %opcode, 20;
+    @%p bra     SKIP_DIV;
+    // Safe divide: add epsilon to prevent /0
+    add.f32     %tmp2, %tmp2, 0f3A83126F;
+    div.approx.f32 %tmp, %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_DIV:
 
-    // ── DENSITY (0x35) ──
-    setp.eq.u32  %p, %opcode, 0x35;
-    @%p bra      DO_DENSITY;
+    // === SQRT (0x15) ===
+    setp.ne.u32 %p, %opcode, 21;
+    @%p bra     SKIP_SQRT;
+    abs.f32     %tmp, %tmp;
+    sqrt.approx.f32 %tmp, %tmp;
+    bra         STORE_RA;
+SKIP_SQRT:
 
-    // ── LOAD_CONST (0x10) ──
-    setp.eq.u32  %p, %opcode, 0x10;
-    @%p bra      DO_LOAD_CONST;
+    // === SIN (0x16) ===
+    setp.ne.u32 %p, %opcode, 22;
+    @%p bra     SKIP_SIN;
+    sin.approx.f32 %tmp, %tmp;
+    bra         STORE_RA;
+SKIP_SIN:
+
+    // === PULSE (0x17) — r[ra] *= ANCHOR ===
+    setp.ne.u32 %p, %opcode, 23;
+    @%p bra     SKIP_PULSE;
+    mul.f32     %tmp, %tmp, %anchor;
+    bra         STORE_RA;
+SKIP_PULSE:
+
+    // === CMP_GT (0x20) ===
+    setp.ne.u32 %p, %opcode, 32;
+    @%p bra     SKIP_GT;
+    setp.gt.f32 %flag, %tmp, %tmp2;
+    bra         NEXT;
+SKIP_GT:
+
+    // === CMP_EQ (0x21) ===
+    setp.ne.u32 %p, %opcode, 33;
+    @%p bra     SKIP_EQ;
+    setp.eq.f32 %flag, %tmp, %tmp2;
+    bra         NEXT;
+SKIP_EQ:
+
+    // === JUMP (0x22) ===
+    setp.ne.u32 %p, %opcode, 34;
+    @%p bra     SKIP_JMP;
+    mov.u32     %pc, %ra;
+    bra         FETCH;
+SKIP_JMP:
+
+    // === JUMP_IF (0x23) ===
+    setp.ne.u32 %p, %opcode, 35;
+    @%p bra     SKIP_JIF;
+    @%flag mov.u32 %pc, %ra;
+    @%flag bra     FETCH;
+    bra         NEXT;
+SKIP_JIF:
+
+    // === MOV (0x24) ===
+    setp.ne.u32 %p, %opcode, 36;
+    @%p bra     SKIP_MOV;
+    mov.f32     %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_MOV:
+
+    // === LOAD_MEM (0x25) ===
+    setp.ne.u32 %p, %opcode, 37;
+    @%p bra     SKIP_LM;
+    mov.f32     %tmp, %tmp2;
+    bra         STORE_RA;
+SKIP_LM:
+
+    // === STORE_MEM (0x26) ===
+    setp.ne.u32 %p, %opcode, 38;
+    @%p bra     SKIP_SM;
+    setp.eq.u32 %p, %rb, 0; @%p mov.f32 %r0, %tmp;
+    setp.eq.u32 %p, %rb, 1; @%p mov.f32 %r1, %tmp;
+    setp.eq.u32 %p, %rb, 2; @%p mov.f32 %r2, %tmp;
+    setp.eq.u32 %p, %rb, 3; @%p mov.f32 %r3, %tmp;
+    setp.eq.u32 %p, %rb, 4; @%p mov.f32 %r4, %tmp;
+    setp.eq.u32 %p, %rb, 5; @%p mov.f32 %r5, %tmp;
+    setp.eq.u32 %p, %rb, 6; @%p mov.f32 %r6, %tmp;
+    setp.eq.u32 %p, %rb, 7; @%p mov.f32 %r7, %tmp;
+    bra         NEXT;
+SKIP_SM:
+
+    // === RESONATE (0x30) — r[a] = magnitude(regs) * ANCHOR ===
+    setp.ne.u32 %p, %opcode, 48;
+    @%p bra     SKIP_RES;
+    mul.f32     %acc, %r0, %r0;
+    mul.f32     %mag, %r1, %r1;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r2, %r2;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r3, %r3;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r4, %r4;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r5, %r5;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r6, %r6;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %mag, %r7, %r7;
+    add.f32     %acc, %acc, %mag;
+    sqrt.approx.f32 %acc, %acc;
+    mul.f32     %tmp, %acc, %anchor;
+    bra         STORE_RA;
+SKIP_RES:
+
+    // === EMBED (0x31) — fractal lattice hash ===
+    setp.ne.u32 %p, %opcode, 49;
+    @%p bra     SKIP_EMB;
+    mul.f32     %mag, %tmp, %anchor;
+    sin.approx.f32 %mag, %mag;
+    mul.f32     %mag, %mag, 0f3F000000;
+    add.f32     %r0, %mag, 0f3F000000;
+    mul.f32     %mag, %tmp, 0f40000000;
+    mul.f32     %mag, %mag, %anchor;
+    sin.approx.f32 %mag, %mag;
+    mul.f32     %mag, %mag, 0f3F000000;
+    add.f32     %r1, %mag, 0f3F000000;
+    mul.f32     %mag, %tmp, 0f40400000;
+    mul.f32     %mag, %mag, %anchor;
+    sin.approx.f32 %mag, %mag;
+    mul.f32     %mag, %mag, 0f3F000000;
+    add.f32     %r2, %mag, 0f3F000000;
+    mul.f32     %mag, %tmp, 0f40800000;
+    mul.f32     %mag, %mag, %anchor;
+    sin.approx.f32 %mag, %mag;
+    mul.f32     %mag, %mag, 0f3F000000;
+    add.f32     %r3, %mag, 0f3F000000;
+    bra         NEXT;
+SKIP_EMB:
+
+    // === THREAD_ID (0x33) ===
+    setp.ne.u32 %p, %opcode, 51;
+    @%p bra     SKIP_TID;
+    cvt.rn.f32.u32 %tmp, %gtid;
+    bra         STORE_RA;
+SKIP_TID:
+
+    // === STORE_OUT (0x34) ===
+    setp.ne.u32 %p, %opcode, 52;
+    @%p bra     SKIP_SO;
+    cvt.u64.u32 %addr, %gtid;
+    shl.b64     %addr, %addr, 2;
+    add.u64     %addr, %out_base, %addr;
+    st.global.f32 [%addr], %tmp;
+    bra         NEXT;
+SKIP_SO:
+
+    // === DENSITY (0x35) ===
+    setp.ne.u32 %p, %opcode, 53;
+    @%p bra     SKIP_DEN;
+    abs.f32     %acc, %r0;
+    abs.f32     %mag, %r1;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r2;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r3;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r4;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r5;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r6;
+    add.f32     %acc, %acc, %mag;
+    abs.f32     %mag, %r7;
+    add.f32     %acc, %acc, %mag;
+    mul.f32     %tmp, %acc, 0f3E000000;
+    bra         STORE_RA;
+SKIP_DEN:
 
     // Unknown opcode → skip
-    bra          NEXT;
-
-// ── Instruction implementations ──
-// Simplified: all ops work on regs0 since we can't index into register file
-// For proper register indexing we'd need shared memory, but for evolution
-// fitness evaluation, most programs primarily use r0
-
-DO_ADD:
-    add.f32     %regs0, %regs0, %regs1;
     bra         NEXT;
 
-DO_MUL:
-    mul.f32     %regs0, %regs0, %regs1;
-    bra         NEXT;
-
-DO_SUB:
-    sub.f32     %regs0, %regs0, %regs1;
-    bra         NEXT;
-
-DO_DIV:
-    // Safe divide
-    add.f32     %tmp, %regs1, 0f3A83126F;
-    div.approx.f32 %regs0, %regs0, %tmp;
-    bra         NEXT;
-
-DO_SQRT:
-    // abs then sqrt
-    abs.f32     %tmp, %regs0;
-    sqrt.approx.f32 %regs0, %tmp;
-    bra         NEXT;
-
-DO_SIN:
-    sin.approx.f32 %regs0, %regs0;
-    bra         NEXT;
-
-DO_PULSE:
-    mul.f32     %regs0, %regs0, %anchor;
-    bra         NEXT;
-
-DO_LOAD_IMM:
-    // Next instruction word is the float value
-    add.u32     %pc, %pc, 1;
-    cvt.u64.u32 %addr, %pc;
-    shl.b64     %addr, %addr, 2;
-    add.u64     %addr, %prog_base, %addr;
-    ld.global.f32 %regs0, [%addr];
-    bra         NEXT;
-
-DO_RESONATE:
-    // resonance = sqrt(|val|) * ANCHOR
-    abs.f32     %tmp, %regs0;
-    sqrt.approx.f32 %tmp, %tmp;
-    mul.f32     %regs0, %tmp, %anchor;
-    bra         NEXT;
-
-DO_DENSITY:
-    // density metric = val * val + val
-    mul.f32     %tmp, %regs0, %regs0;
-    add.f32     %regs0, %tmp, %regs0;
-    bra         NEXT;
-
-DO_LOAD_CONST:
-    // Load constant 0.01 * (ra+1) as a simple seed
-    cvt.rn.f32.u32 %tmp, %ra;
-    add.f32     %tmp, %tmp, %one;
-    mul.f32     %regs0, %tmp, 0f3C23D70A;   // 0.01
-    bra         NEXT;
+// === STORE r[ra] <- %tmp ===
+STORE_RA:
+    setp.eq.u32 %p, %ra, 0; @%p mov.f32 %r0, %tmp;
+    setp.eq.u32 %p, %ra, 1; @%p mov.f32 %r1, %tmp;
+    setp.eq.u32 %p, %ra, 2; @%p mov.f32 %r2, %tmp;
+    setp.eq.u32 %p, %ra, 3; @%p mov.f32 %r3, %tmp;
+    setp.eq.u32 %p, %ra, 4; @%p mov.f32 %r4, %tmp;
+    setp.eq.u32 %p, %ra, 5; @%p mov.f32 %r5, %tmp;
+    setp.eq.u32 %p, %ra, 6; @%p mov.f32 %r6, %tmp;
+    setp.eq.u32 %p, %ra, 7; @%p mov.f32 %r7, %tmp;
 
 NEXT:
     add.u32     %pc, %pc, 1;
@@ -213,7 +374,7 @@ DONE:
     cvt.u64.u32 %addr, %gtid;
     shl.b64     %addr, %addr, 2;
     add.u64     %addr, %out_base, %addr;
-    st.global.f32 [%addr], %regs0;
+    st.global.f32 [%addr], %r0;
 
 EXIT:
     ret;
