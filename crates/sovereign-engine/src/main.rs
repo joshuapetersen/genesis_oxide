@@ -35,6 +35,7 @@ mod skva;
 mod codegen;
 mod gpu_dispatch;
 mod forge;
+mod nlp;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -1207,7 +1208,67 @@ fn main() {
         return;
     }
 
+    // ── N-LP MODE (Natural Language Processor) ──
+    if let Some(query_text) = find_arg(&args, "--nlp") {
+        let archive_path = find_arg(&args, "--archive-path")
+            .unwrap_or_else(|| "genetic_archive.dat".to_string());
+        let top_k: usize = find_arg(&args, "--top-k")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10);
 
+        println!("════════════════════════════════════════════════════════════════");
+        println!("  SOVEREIGN N-LP — DETERMINISTIC SEMANTIC MAPPING");
+        println!("  Not an LLM. No weights. No hallucination.");
+        println!("  Query → 57D Vector → Archive Search → Execute → Verify");
+        println!("════════════════════════════════════════════════════════════════");
+
+        let ga = archive::GeneticArchive::open(
+            std::path::Path::new(&archive_path),
+        );
+
+        if ga.entries.is_empty() {
+            eprintln!("[N-LP] No entries in archive. Run --forge + --ignite first.");
+            return;
+        }
+
+        let t0 = Instant::now();
+        let engine = nlp::SovereignNlp::from_archive(&ga);
+        println!("[N-LP] Archive loaded in {:.1}ms", t0.elapsed().as_secs_f64() * 1000.0);
+
+        // Run the query
+        let t1 = Instant::now();
+        let result = engine.query(&query_text, top_k);
+        let query_ms = t1.elapsed().as_secs_f64() * 1000.0;
+
+        engine.print_results(&result);
+
+        println!();
+        println!("[N-LP] Query latency: {:.1}ms ({} organisms searched)",
+            query_ms, ga.entries.len());
+
+        // Interactive mode: keep querying
+        if args.iter().any(|s| s == "--interactive") {
+            use std::io::{self, BufRead, Write};
+            println!();
+            println!("[N-LP] Interactive mode. Type queries, Ctrl+C to exit.");
+            loop {
+                print!("\n[QUERY] > ");
+                io::stdout().flush().ok();
+                let mut line = String::new();
+                if io::stdin().lock().read_line(&mut line).is_err() || line.trim().is_empty() {
+                    break;
+                }
+                let t2 = Instant::now();
+                let r = engine.query(line.trim(), top_k);
+                engine.print_results(&r);
+                println!("[N-LP] {:.1}ms", t2.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+
+        return;
+    }
+
+    // ── FORGE MODE (Engine 21 — Volumetric Forge) ──
     if let Some(forge_target) = find_arg(&args, "--forge") {
         let output_dir = find_arg(&args, "--output")
             .unwrap_or_else(|| "will_inbox".to_string());
