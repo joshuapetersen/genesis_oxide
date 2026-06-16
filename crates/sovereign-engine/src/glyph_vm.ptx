@@ -10,6 +10,7 @@
 )
 {
     .reg .u32   %gtid, %nthr, %num_inst, %pc, %opcode, %ra, %rb, %tmp_u;
+    .reg .u32   %cycles, %max_cycles;
     .reg .u64   %inst_base, %out_base, %addr;
     .reg .u32   %inst_word;
     .reg .f32   %r0, %r1, %r2, %r3, %r4, %r5, %r6, %r7;
@@ -45,10 +46,19 @@
     mov.f32     %anchor, 0f3F8BE01E;
     mov.u32     %pc, 0;
 
+    // Cycle limit (prevents infinite loops)
+    mov.u32     %cycles, 0;
+    mov.u32     %max_cycles, 10000;
+
     // Clear flag
     setp.eq.u32 %flag, %pc, %pc;
 
 FETCH:
+    // Cycle limit check
+    add.u32     %cycles, %cycles, 1;
+    setp.ge.u32 %p, %cycles, %max_cycles;
+    @%p bra     WRITE_OUT;
+
     setp.ge.u32 %ploop, %pc, %num_inst;
     @%ploop bra WRITE_OUT;
 
