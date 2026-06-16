@@ -26,7 +26,7 @@ const SUPER_SYMMETRY: f64 = 1.1;
 /// Minimum fitness threshold to qualify for archival
 pub const ARCHIVE_THRESHOLD: f32 = 1.0;
 /// Maximum archive entries (prevent unbounded growth)
-pub const MAX_ARCHIVE_ENTRIES: usize = 10_000;
+pub const MAX_ARCHIVE_ENTRIES: usize = 101_000;
 
 /// A single archived organism
 #[derive(Debug, Clone)]

@@ -991,7 +991,223 @@ fn main() {
         return;
     }
 
-    // ── FORGE MODE (Engine 21 — Volumetric Forge) ──
+    // ── ANALYZE MODE (Master-Sequence Analysis) ──
+    if args.iter().any(|s| s == "--analyze") {
+        let archive_path = find_arg(&args, "--archive-path")
+            .unwrap_or_else(|| "genetic_archive.dat".to_string());
+        let ga = archive::GeneticArchive::open(
+            std::path::Path::new(&archive_path),
+        );
+
+        if ga.entries.is_empty() {
+            eprintln!("[ANALYZE] No entries in archive.");
+            return;
+        }
+
+        println!("════════════════════════════════════════════════════════════════");
+        println!("  MASTER-SEQUENCE ANALYSIS");
+        println!("  Archive:  {} entries", ga.entries.len());
+        println!("════════════════════════════════════════════════════════════════");
+
+        // Separate perfect resonators (fitness >= 1e11) from the rest
+        let perfect: Vec<&archive::ArchiveEntry> = ga.entries.iter()
+            .filter(|e| e.fitness >= 1e11 && !e.instructions.is_empty())
+            .collect();
+        let imperfect: Vec<&archive::ArchiveEntry> = ga.entries.iter()
+            .filter(|e| e.fitness < 1e11 && e.fitness > 0.0 && !e.instructions.is_empty())
+            .collect();
+
+        println!();
+        println!("┌─ POPULATION BREAKDOWN ─────────────────────────────────────┐");
+        println!("│  Perfect resonators (Δ < 1e-12):  {:>6}  ({:.1}%)         │",
+            perfect.len(), perfect.len() as f64 / ga.entries.len() as f64 * 100.0);
+        println!("│  Imperfect resonators:             {:>6}  ({:.1}%)         │",
+            imperfect.len(), imperfect.len() as f64 / ga.entries.len() as f64 * 100.0);
+        println!("└─────────────────────────────────────────────────────────────┘");
+
+        // ── 1. OPCODE FREQUENCY ANALYSIS ──
+        let opcode_names = [
+            (0x00, "Nop"), (0x10, "LoadConst"), (0x11, "Add"), (0x12, "Mul"),
+            (0x13, "Sub"), (0x14, "Div"), (0x15, "Sqrt"), (0x16, "Sin"),
+            (0x17, "Pulse"), (0x18, "LoadImm"), (0x20, "CmpGt"), (0x21, "CmpEq"),
+            (0x22, "Jump"), (0x23, "JumpIf"), (0x24, "Mov"), (0x25, "LoadMem"),
+            (0x26, "StoreMem"), (0x30, "Resonate"), (0x31, "Embed"),
+            (0x33, "ThreadId"), (0x34, "StoreOut"), (0x35, "Density"), (0xFF, "Halt"),
+        ];
+
+        let mut perfect_freq: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+        let mut imperfect_freq: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+        let mut total_perfect_insts = 0usize;
+        let mut total_imperfect_insts = 0usize;
+
+        for e in &perfect {
+            for inst in &e.instructions {
+                *perfect_freq.entry(inst.opcode).or_insert(0) += 1;
+                total_perfect_insts += 1;
+            }
+        }
+        for e in &imperfect {
+            for inst in &e.instructions {
+                *imperfect_freq.entry(inst.opcode).or_insert(0) += 1;
+                total_imperfect_insts += 1;
+            }
+        }
+
+        println!();
+        println!("┌─ OPCODE FREQUENCY (CORE GENES) ───────────────────────────┐");
+        println!("│  {:10} {:>8} {:>7} {:>8} {:>7} {:>7} │",
+            "Opcode", "Perfect", "%", "Imperf", "%", "Δ%");
+        println!("├────────────────────────────────────────────────────────────┤");
+
+        let mut opcode_enrichment: Vec<(u8, &str, f64, f64, f64)> = Vec::new();
+        for &(code, name) in &opcode_names {
+            let pf = *perfect_freq.get(&code).unwrap_or(&0) as f64;
+            let ipf = *imperfect_freq.get(&code).unwrap_or(&0) as f64;
+            let p_pct = if total_perfect_insts > 0 { pf / total_perfect_insts as f64 * 100.0 } else { 0.0 };
+            let i_pct = if total_imperfect_insts > 0 { ipf / total_imperfect_insts as f64 * 100.0 } else { 0.0 };
+            let delta = p_pct - i_pct;
+            opcode_enrichment.push((code, name, p_pct, i_pct, delta));
+        }
+        // Sort by enrichment in perfect resonators
+        opcode_enrichment.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (code, name, p_pct, i_pct, delta) in &opcode_enrichment {
+            let marker = if *delta > 1.0 { "▲" } else if *delta < -1.0 { "▼" } else { " " };
+            println!("│  {:10} {:>7} {:>6.1}% {:>7} {:>6.1}% {:>+6.1}%{} │",
+                name,
+                perfect_freq.get(code).unwrap_or(&0), p_pct,
+                imperfect_freq.get(code).unwrap_or(&0), i_pct,
+                delta, marker);
+        }
+        println!("└────────────────────────────────────────────────────────────┘");
+
+        // ── 2. BIGRAM ANALYSIS (2-instruction motifs) ──
+        let mut perfect_bigrams: std::collections::HashMap<(u8, u8), usize> = std::collections::HashMap::new();
+        for e in &perfect {
+            for w in e.instructions.windows(2) {
+                *perfect_bigrams.entry((w[0].opcode, w[1].opcode)).or_insert(0) += 1;
+            }
+        }
+        let mut bigram_vec: Vec<((u8, u8), usize)> = perfect_bigrams.into_iter().collect();
+        bigram_vec.sort_by(|a, b| b.1.cmp(&a.1));
+
+        let name_of = |code: u8| -> &str {
+            opcode_names.iter().find(|&&(c, _)| c == code).map(|&(_, n)| n).unwrap_or("???")
+        };
+
+        println!();
+        println!("┌─ TOP 15 BIGRAM MOTIFS (PERFECT RESONATORS) ───────────────┐");
+        println!("│  {:>6} {:14} → {:14} {:>6}  {:>5}% │", "Rank", "Opcode A", "Opcode B", "Count", "Freq");
+        println!("├────────────────────────────────────────────────────────────┤");
+        let total_bigrams = bigram_vec.iter().map(|(_, c)| c).sum::<usize>().max(1);
+        for (i, ((a, b), count)) in bigram_vec.iter().take(15).enumerate() {
+            println!("│  {:>4}. {:14} → {:14} {:>6}  {:>4.1}% │",
+                i + 1, name_of(*a), name_of(*b),
+                count, *count as f64 / total_bigrams as f64 * 100.0);
+        }
+        println!("└────────────────────────────────────────────────────────────┘");
+
+        // ── 3. TRIGRAM ANALYSIS (3-instruction master sequences) ──
+        let mut perfect_trigrams: std::collections::HashMap<(u8, u8, u8), usize> = std::collections::HashMap::new();
+        for e in &perfect {
+            for w in e.instructions.windows(3) {
+                *perfect_trigrams.entry((w[0].opcode, w[1].opcode, w[2].opcode)).or_insert(0) += 1;
+            }
+        }
+        let mut trigram_vec: Vec<((u8, u8, u8), usize)> = perfect_trigrams.into_iter().collect();
+        trigram_vec.sort_by(|a, b| b.1.cmp(&a.1));
+
+        println!();
+        println!("┌─ TOP 10 TRIGRAM MOTIFS (MASTER SEQUENCES) ────────────────┐");
+        for (i, ((a, b, c), count)) in trigram_vec.iter().take(10).enumerate() {
+            println!("│  {}. {} → {} → {}  (×{})",
+                i + 1, name_of(*a), name_of(*b), name_of(*c), count);
+        }
+        println!("└────────────────────────────────────────────────────────────┘");
+
+        // ── 4. POSITIONAL INVARIANTS (structural bottlenecks) ──
+        // Find positions where ALL perfect resonators agree on the opcode
+        if !perfect.is_empty() {
+            let min_len = perfect.iter().map(|e| e.instructions.len()).min().unwrap_or(0);
+            println!();
+            println!("┌─ STRUCTURAL BOTTLENECKS (invariant positions) ────────────┐");
+            println!("│  Checking {} positions across {} perfect resonators        │",
+                min_len, perfect.len());
+            println!("├────────────────────────────────────────────────────────────┤");
+
+            let mut invariant_count = 0;
+            for pos in 0..min_len {
+                let first_opcode = perfect[0].instructions[pos].opcode;
+                let all_same = perfect.iter().all(|e| e.instructions[pos].opcode == first_opcode);
+                if all_same {
+                    println!("│  Position {:>2}: {} (0x{:02X}) — INVARIANT across all {} │",
+                        pos, name_of(first_opcode), first_opcode, perfect.len());
+                    invariant_count += 1;
+                } else {
+                    // Show consensus percentage
+                    let mut op_counts: std::collections::HashMap<u8, usize> = std::collections::HashMap::new();
+                    for e in &perfect {
+                        *op_counts.entry(e.instructions[pos].opcode).or_insert(0) += 1;
+                    }
+                    let (best_op, best_count) = op_counts.iter()
+                        .max_by_key(|(_, c)| *c).unwrap();
+                    let pct = *best_count as f64 / perfect.len() as f64 * 100.0;
+                    if pct > 50.0 {
+                        println!("│  Position {:>2}: {} (0x{:02X}) — {:.1}% consensus     │",
+                            pos, name_of(*best_op), best_op, pct);
+                    }
+                }
+            }
+            if invariant_count == 0 {
+                println!("│  No fully invariant positions found.                      │");
+                println!("│  (High genetic diversity across resonators)               │");
+            } else {
+                println!("├────────────────────────────────────────────────────────────┤");
+                println!("│  Total invariant positions: {} / {}                       │",
+                    invariant_count, min_len);
+            }
+            println!("└────────────────────────────────────────────────────────────┘");
+        }
+
+        // ── 5. GENERATION DISTRIBUTION ──
+        println!();
+        println!("┌─ GENERATION DISTRIBUTION (when anchor was found) ─────────┐");
+        let mut gen_dist: std::collections::HashMap<u32, usize> = std::collections::HashMap::new();
+        for e in &perfect {
+            *gen_dist.entry(e.generation).or_insert(0) += 1;
+        }
+        let mut gen_vec: Vec<(u32, usize)> = gen_dist.into_iter().collect();
+        gen_vec.sort_by_key(|&(gn, _)| gn);
+        for (gn, count) in &gen_vec {
+            let bar_len = (*count as f64 / perfect.len() as f64 * 40.0) as usize;
+            let bar: String = "█".repeat(bar_len);
+            println!("│  Gen {:>2}: {:>5} ({:>5.1}%) {}│",
+                gn, count, *count as f64 / perfect.len() as f64 * 100.0, bar);
+        }
+        println!("└────────────────────────────────────────────────────────────┘");
+
+        // ── 6. EXTRACT SHORTEST PERFECT RESONATOR ──
+        if let Some(shortest) = perfect.iter()
+            .min_by_key(|e| e.instructions.len())
+        {
+            println!();
+            println!("┌─ SHORTEST PERFECT RESONATOR (kernel candidate) ──────────┐");
+            println!("│  Instructions: {}                                        │", shortest.instructions.len());
+            println!("│  Generation:   {}                                        │", shortest.generation);
+            println!("│  Fitness:      {:.4}                                     │", shortest.fitness);
+            println!("├────────────────────────────────────────────────────────────┤");
+            for (i, inst) in shortest.instructions.iter().enumerate() {
+                println!("│  [{:>2}] {:10} r{}, r{}  flags=0x{:02X}                 │",
+                    i, name_of(inst.opcode), inst.reg_a, inst.reg_b, inst.flags);
+            }
+            println!("└────────────────────────────────────────────────────────────┘");
+        }
+
+        ga.print_summary();
+        return;
+    }
+
+
     if let Some(forge_target) = find_arg(&args, "--forge") {
         let output_dir = find_arg(&args, "--output")
             .unwrap_or_else(|| "will_inbox".to_string());
