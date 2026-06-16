@@ -39,6 +39,7 @@ mod nlp;
 mod ace;
 mod crawler;
 mod sandbox;
+mod defrag;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -1324,6 +1325,29 @@ fn main() {
                 engine.print_results(&r);
                 println!("[N-LP] {:.1}ms", t2.elapsed().as_secs_f64() * 1000.0);
             }
+        }
+
+        return;
+    }
+
+    // ── DEFRAG MODE (Semantic Sort / SDT Audit / Rebuild / Verify) ──
+    if args.iter().any(|s| s == "--defrag") {
+        let archive_file = find_arg(&args, "--archive")
+            .unwrap_or_else(|| "genetic_archive.dat".to_string());
+        let mut ga = archive::GeneticArchive::open(std::path::Path::new(&archive_file));
+
+        if args.iter().any(|s| s == "--audit") {
+            defrag::audit_archive(&ga);
+        } else if args.iter().any(|s| s == "--rebuild") {
+            defrag::rebuild_archive(&mut ga);
+        } else if args.iter().any(|s| s == "--verify") {
+            defrag::verify_archive(&ga);
+        } else {
+            // Default: semantic K-means repack
+            let clusters = find_arg(&args, "--clusters")
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(27);
+            defrag::defrag_archive(&mut ga, clusters);
         }
 
         return;

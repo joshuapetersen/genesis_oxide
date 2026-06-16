@@ -455,4 +455,33 @@ impl GeneticArchive {
             self.entries.len());
         println!("└─────────────────────────────────────────────────────┘");
     }
+
+    /// Rewrite the ENTIRE archive from the current entries (used by defrag)
+    pub fn save_all(&self) {
+        // Rewrite binary .dat
+        let mut data = Vec::with_capacity(self.entries.len() * LATTICE_NODE_SIZE);
+        for entry in &self.entries {
+            let node = Self::write_lattice_node(&entry.vector, entry.signature);
+            data.extend_from_slice(&node);
+        }
+        if let Err(e) = std::fs::write(&self.archive_path, &data) {
+            eprintln!("[ARCHIVE] save_all binary failed: {}", e);
+            return;
+        }
+
+        // Rewrite instruction sidecar
+        self.save_instructions();
+
+        // Rewrite metadata sidecar
+        self.save_metadata("defrag_repack");
+
+        println!("[ARCHIVE] Saved {} entries ({} bytes)",
+            self.entries.len(), data.len());
+    }
+
+    /// Get archive statistics tuple: (total_entries, entries_with_instructions, total_bytes)
+    pub fn stats(&self) -> (usize, usize, usize) {
+        let with_instr = self.entries.iter().filter(|e| !e.instructions.is_empty()).count();
+        (self.entries.len(), with_instr, self.entries.len() * LATTICE_NODE_SIZE)
+    }
 }
