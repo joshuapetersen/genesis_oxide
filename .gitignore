@@ -1,0 +1,17 @@
+﻿/target/
+*.exe
+*.dll
+*.so
+*.dylib
+*.cubin
+*.o
+*.d
+dump.ptx
+test.ptx
+test.gbin
+test.cubin
+genetic_archive.dat
+genetic_archive.instructions
+genetic_archive.meta.json
+will_inbox/processed/
+Cargo.lock

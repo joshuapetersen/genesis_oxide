@@ -1,0 +1,220 @@
+.version 8.0
+.target sm_89
+.address_size 64
+
+// ════════════════════════════════════════════════════════════════
+// EVOLUTION VM KERNEL — Multi-Program Parallel Execution
+// ════════════════════════════════════════════════════════════════
+// Each thread runs a DIFFERENT glyph program (different instruction stream)
+// programs:  u32[N * inst_len] — N concatenated programs, each inst_len long
+// inst_len:  u32 — instructions per program
+// output:    f32[N] — one result per thread (r0 after execution)
+// num_progs: u32 — total programs = total threads
+
+.visible .entry evolve_vm(
+    .param .u64 param_programs,
+    .param .u32 param_inst_len,
+    .param .u64 param_output,
+    .param .u32 param_num_progs
+)
+{
+    .reg .u32   %gtid, %nthr, %inst_len, %pc, %opcode, %ra, %rb, %tmp_u;
+    .reg .u64   %prog_base, %out_base, %addr;
+    .reg .f32   %regs<16>;
+    .reg .f32   %tmp, %anchor, %one, %imm;
+    .reg .pred  %p, %pflag;
+
+    // Global thread ID
+    mov.u32     %tmp_u, %ctaid.x;
+    mov.u32     %gtid, %ntid.x;
+    mov.u32     %pc, %tid.x;
+    mad.lo.u32  %gtid, %tmp_u, %gtid, %pc;
+
+    // Bounds check
+    ld.param.u32 %nthr, [param_num_progs];
+    setp.ge.u32  %p, %gtid, %nthr;
+    @%p bra      EXIT;
+
+    ld.param.u64 %prog_base, [param_programs];
+    ld.param.u32 %inst_len, [param_inst_len];
+    ld.param.u64 %out_base, [param_output];
+
+    // Compute this thread's program base: prog_base + gtid * inst_len * 4
+    mul.lo.u32   %tmp_u, %gtid, %inst_len;
+    cvt.u64.u32  %addr, %tmp_u;
+    shl.b64      %addr, %addr, 2;
+    add.u64      %prog_base, %prog_base, %addr;
+
+    // Initialize registers to 0
+    mov.f32     %regs0, 0f00000000;
+    mov.f32     %regs1, 0f00000000;
+    mov.f32     %regs2, 0f00000000;
+    mov.f32     %regs3, 0f00000000;
+    mov.f32     %regs4, 0f00000000;
+    mov.f32     %regs5, 0f00000000;
+    mov.f32     %regs6, 0f00000000;
+    mov.f32     %regs7, 0f00000000;
+    mov.f32     %regs8, 0f00000000;
+    mov.f32     %regs9, 0f00000000;
+    mov.f32     %regs10, 0f00000000;
+    mov.f32     %regs11, 0f00000000;
+    mov.f32     %regs12, 0f00000000;
+    mov.f32     %regs13, 0f00000000;
+    mov.f32     %regs14, 0f00000000;
+    mov.f32     %regs15, 0f00000000;
+
+    // SOVEREIGN_ANCHOR = 1.092777 ≈ 0x3F8BE01E
+    mov.f32     %anchor, 0f3F8BE01E;
+    mov.f32     %one, 0f3F800000;
+
+    // Dispatch loop
+    mov.u32     %pc, 0;
+
+FETCH:
+    setp.ge.u32  %p, %pc, %inst_len;
+    @%p bra      DONE;
+
+    // Load instruction: prog_base[pc]
+    cvt.u64.u32  %addr, %pc;
+    shl.b64      %addr, %addr, 2;
+    add.u64      %addr, %prog_base, %addr;
+    ld.global.u32 %tmp_u, [%addr];
+
+    // Decode: opcode = byte0, ra = byte1 & 0xF, rb = byte2 & 0xF
+    and.b32     %opcode, %tmp_u, 0xFF;
+    shr.b32     %ra, %tmp_u, 8;
+    and.b32     %ra, %ra, 0x0F;
+    shr.b32     %rb, %tmp_u, 16;
+    and.b32     %rb, %rb, 0x0F;
+
+    // ── HALT (0xFF) ──
+    setp.eq.u32  %p, %opcode, 0xFF;
+    @%p bra      DONE;
+
+    // ── ADD (0x11): regs[ra] += regs[rb] ──
+    setp.eq.u32  %p, %opcode, 0x11;
+    @%p bra      DO_ADD;
+
+    // ── MUL (0x12) ──
+    setp.eq.u32  %p, %opcode, 0x12;
+    @%p bra      DO_MUL;
+
+    // ── SUB (0x13) ──
+    setp.eq.u32  %p, %opcode, 0x13;
+    @%p bra      DO_SUB;
+
+    // ── DIV (0x14) ──
+    setp.eq.u32  %p, %opcode, 0x14;
+    @%p bra      DO_DIV;
+
+    // ── SQRT (0x15) ──
+    setp.eq.u32  %p, %opcode, 0x15;
+    @%p bra      DO_SQRT;
+
+    // ── SIN (0x16) ──
+    setp.eq.u32  %p, %opcode, 0x16;
+    @%p bra      DO_SIN;
+
+    // ── PULSE (0x17): regs[ra] *= ANCHOR ──
+    setp.eq.u32  %p, %opcode, 0x17;
+    @%p bra      DO_PULSE;
+
+    // ── LOAD_IMM (0x18): regs[ra] = next_word_as_float ──
+    setp.eq.u32  %p, %opcode, 0x18;
+    @%p bra      DO_LOAD_IMM;
+
+    // ── RESONATE (0x30) ──
+    setp.eq.u32  %p, %opcode, 0x30;
+    @%p bra      DO_RESONATE;
+
+    // ── DENSITY (0x35) ──
+    setp.eq.u32  %p, %opcode, 0x35;
+    @%p bra      DO_DENSITY;
+
+    // ── LOAD_CONST (0x10) ──
+    setp.eq.u32  %p, %opcode, 0x10;
+    @%p bra      DO_LOAD_CONST;
+
+    // Unknown opcode → skip
+    bra          NEXT;
+
+// ── Instruction implementations ──
+// Simplified: all ops work on regs0 since we can't index into register file
+// For proper register indexing we'd need shared memory, but for evolution
+// fitness evaluation, most programs primarily use r0
+
+DO_ADD:
+    add.f32     %regs0, %regs0, %regs1;
+    bra         NEXT;
+
+DO_MUL:
+    mul.f32     %regs0, %regs0, %regs1;
+    bra         NEXT;
+
+DO_SUB:
+    sub.f32     %regs0, %regs0, %regs1;
+    bra         NEXT;
+
+DO_DIV:
+    // Safe divide
+    add.f32     %tmp, %regs1, 0f3A83126F;
+    div.approx.f32 %regs0, %regs0, %tmp;
+    bra         NEXT;
+
+DO_SQRT:
+    // abs then sqrt
+    abs.f32     %tmp, %regs0;
+    sqrt.approx.f32 %regs0, %tmp;
+    bra         NEXT;
+
+DO_SIN:
+    sin.approx.f32 %regs0, %regs0;
+    bra         NEXT;
+
+DO_PULSE:
+    mul.f32     %regs0, %regs0, %anchor;
+    bra         NEXT;
+
+DO_LOAD_IMM:
+    // Next instruction word is the float value
+    add.u32     %pc, %pc, 1;
+    cvt.u64.u32 %addr, %pc;
+    shl.b64     %addr, %addr, 2;
+    add.u64     %addr, %prog_base, %addr;
+    ld.global.f32 %regs0, [%addr];
+    bra         NEXT;
+
+DO_RESONATE:
+    // resonance = sqrt(|val|) * ANCHOR
+    abs.f32     %tmp, %regs0;
+    sqrt.approx.f32 %tmp, %tmp;
+    mul.f32     %regs0, %tmp, %anchor;
+    bra         NEXT;
+
+DO_DENSITY:
+    // density metric = val * val + val
+    mul.f32     %tmp, %regs0, %regs0;
+    add.f32     %regs0, %tmp, %regs0;
+    bra         NEXT;
+
+DO_LOAD_CONST:
+    // Load constant 0.01 * (ra+1) as a simple seed
+    cvt.rn.f32.u32 %tmp, %ra;
+    add.f32     %tmp, %tmp, %one;
+    mul.f32     %regs0, %tmp, 0f3C23D70A;   // 0.01
+    bra         NEXT;
+
+NEXT:
+    add.u32     %pc, %pc, 1;
+    bra         FETCH;
+
+DONE:
+    // Store r0 to output[gtid]
+    cvt.u64.u32 %addr, %gtid;
+    shl.b64     %addr, %addr, 2;
+    add.u64     %addr, %out_base, %addr;
+    st.global.f32 [%addr], %regs0;
+
+EXIT:
+    ret;
+}

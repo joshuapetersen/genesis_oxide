@@ -1,0 +1,5 @@
+; Density metric
+LOAD_IMM r0 #3.14159
+DENSITY r0 0 0
+STORE_OUT r0 0 0
+HALT

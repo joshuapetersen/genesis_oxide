@@ -1,0 +1,15 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/genlex-types",
+    "crates/genlex-oxide",
+    "crates/dialect-genlex",
+    "crates/genesis-runtime",
+    "crates/sovereign-engine",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Joshua Petersen <joshuapetersen119@gmail.com>"]
+license = "Apache-2.0"

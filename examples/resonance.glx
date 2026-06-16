@@ -1,0 +1,5 @@
+; Sovereign resonance test
+LOAD_IMM r0 #42.0
+LOAD_IMM r1 #ANCHOR
+MUL r0 r1
+HALT

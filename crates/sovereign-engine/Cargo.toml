@@ -1,0 +1,17 @@
+[package]
+name = "sovereign-engine"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Sovereign Consensus Compute Engine — Multi-substrate verified parallel execution"
+
+[[bin]]
+name = "sovereign"
+path = "src/main.rs"
+
+[dependencies]
+genlex-types = { path = "../genlex-types" }
+genlex-oxide = { path = "../genlex-oxide" }
+cudarc = { version = "0.19.7", features = ["cuda-13010", "driver", "nvrtc"] }
+rand = "0.8"

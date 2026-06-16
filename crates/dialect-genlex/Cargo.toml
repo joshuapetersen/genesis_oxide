@@ -1,0 +1,13 @@
+[package]
+name = "dialect-genlex"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "genlex-asm"
+path = "src/main.rs"
+
+[dependencies]
+genlex-types = { path = "../genlex-types" }

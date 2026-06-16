@@ -1,0 +1,90 @@
+.version 8.0
+.target sm_89
+.address_size 64
+
+// ════════════════════════════════════════════════════════════════
+// VAULT SEARCH KERNEL — 57D Euclidean Resonance
+// ════════════════════════════════════════════════════════════════
+// Each thread computes: output[tid] = 1.0 / (1.0 + euclidean_dist(query, memories[tid]))
+// memories: f32[num_nodes * dims] — flattened vault
+// query:    f32[dims] — 57D query vector
+// output:   f32[num_nodes] — resonance scores
+
+.visible .entry vault_search(
+    .param .u64 param_memories,
+    .param .u64 param_query,
+    .param .u64 param_output,
+    .param .u32 param_num_nodes,
+    .param .u32 param_dims
+)
+{
+    .reg .u32   %gtid, %nthr, %dims, %d, %tmp_u, %tmp_v;
+    .reg .u64   %mem_base, %q_base, %out_base, %addr, %addr2;
+    .reg .f32   %diff, %dist_sq, %dist, %resonance, %qval, %mval, %one;
+    .reg .pred  %p, %ploop;
+
+    // Global thread ID = ctaid.x * ntid.x + tid.x
+    mov.u32     %tmp_u, %ctaid.x;
+    mov.u32     %gtid, %ntid.x;
+    mov.u32     %tmp_v, %tid.x;
+    mad.lo.u32  %gtid, %tmp_u, %gtid, %tmp_v;
+
+    // Bounds check
+    ld.param.u32 %nthr, [param_num_nodes];
+    setp.ge.u32  %p, %gtid, %nthr;
+    @%p bra      EXIT;
+
+    ld.param.u64 %mem_base, [param_memories];
+    ld.param.u64 %q_base, [param_query];
+    ld.param.u64 %out_base, [param_output];
+    ld.param.u32 %dims, [param_dims];
+
+    // Compute base offset for this thread's memory vector: gtid * dims * 4
+    mul.lo.u32   %tmp_u, %gtid, %dims;
+    cvt.u64.u32  %addr, %tmp_u;
+    shl.b64      %addr, %addr, 2;        // * 4 (sizeof f32)
+    add.u64      %mem_base, %mem_base, %addr;
+
+    // Accumulate squared distance
+    mov.f32     %dist_sq, 0f00000000;     // 0.0
+    mov.u32     %d, 0;
+
+LOOP_DIM:
+    setp.ge.u32 %ploop, %d, %dims;
+    @%ploop bra LOOP_DONE;
+
+    // Load query[d]
+    cvt.u64.u32 %addr, %d;
+    shl.b64     %addr, %addr, 2;
+    add.u64     %addr2, %q_base, %addr;
+    ld.global.f32 %qval, [%addr2];
+
+    // Load memories[tid*dims + d]
+    add.u64     %addr2, %mem_base, %addr;
+    ld.global.f32 %mval, [%addr2];
+
+    // diff = qval - mval
+    sub.f32     %diff, %qval, %mval;
+    // dist_sq += diff * diff
+    mul.f32     %diff, %diff, %diff;
+    add.f32     %dist_sq, %dist_sq, %diff;
+
+    add.u32     %d, %d, 1;
+    bra         LOOP_DIM;
+
+LOOP_DONE:
+    // resonance = 1.0 / (1.0 + sqrt(dist_sq))
+    sqrt.approx.f32 %dist, %dist_sq;
+    mov.f32     %one, 0f3F800000;         // 1.0
+    add.f32     %dist, %one, %dist;
+    div.approx.f32 %resonance, %one, %dist;
+
+    // Store output[gtid]
+    cvt.u64.u32 %addr, %gtid;
+    shl.b64     %addr, %addr, 2;
+    add.u64     %addr, %out_base, %addr;
+    st.global.f32 [%addr], %resonance;
+
+EXIT:
+    ret;
+}

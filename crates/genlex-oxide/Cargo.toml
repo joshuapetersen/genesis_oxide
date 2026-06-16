@@ -1,0 +1,9 @@
+[package]
+name = "genlex-oxide"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+genlex-types = { path = "../genlex-types" }
