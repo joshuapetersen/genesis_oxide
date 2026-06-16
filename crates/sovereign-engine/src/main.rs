@@ -742,8 +742,18 @@ fn main() {
             println!("┌─ CYCLE {}/{} ──────────────────────────────────────────┐", cycle + 1, cycles);
 
             // Phase 1: Codegen — generate batch_size programs
+            // After first cycle, seed 1/3 of programs from archived winners
             let base_seed = (cycle as u64 * 1000) + start.elapsed().as_nanos() as u64;
-            let paths = codegen::seed_inbox(inbox_path, batch_size, base_seed);
+            let archived_insts: Vec<Vec<genlex_types::GlyphInst>> = ga.entries.iter()
+                .filter(|e| !e.instructions.is_empty())
+                .map(|e| e.instructions.clone())
+                .collect();
+            let paths = if archived_insts.is_empty() {
+                codegen::seed_inbox(inbox_path, batch_size, base_seed)
+            } else {
+                codegen::seed_inbox_with_archive(
+                    inbox_path, batch_size, base_seed, Some(&archived_insts))
+            };
             total_programs += paths.len() as u64;
 
             // Phase 2: Evolve each program (CPU-only)
