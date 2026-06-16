@@ -720,9 +720,20 @@ fn main() {
             .unwrap_or(50);
         let archive_path = find_arg(&args, "--archive-path")
             .unwrap_or_else(|| "genetic_archive.dat".to_string());
+        let resonance_mode = args.iter().any(|s| s == "--resonance");
+        let consume_mode = args.iter().any(|s| s == "--consume");
 
         println!("════════════════════════════════════════════════════════════════");
-        println!("  SOVEREIGN IGNITION — AUTONOMOUS EVOLUTION LOOP");
+        if resonance_mode {
+            println!("  SOVEREIGN IGNITION — RESONANCE SEARCH");
+            println!("  Target: SOVEREIGN_ANCHOR = {}", SOVEREIGN_ANCHOR);
+            println!("  Fitness = 1 / |r0 - ANCHOR| — closest to truth survives");
+        } else {
+            println!("  SOVEREIGN IGNITION — AUTONOMOUS EVOLUTION LOOP");
+        }
+        if consume_mode {
+            println!("  Mode: CONSUME (eating forged inbox)");
+        }
         println!("  Cycles: {} | Batch: {} | Generations/cycle: {}", cycles, batch_size, generations);
         println!("════════════════════════════════════════════════════════════════");
 
@@ -759,18 +770,43 @@ fn main() {
             println!();
             println!("┌─ CYCLE {}/{} ──────────────────────────────────────────┐", cycle + 1, cycles);
 
-            // Phase 1: Codegen — generate batch_size programs
-            // After first cycle, seed 1/3 of programs from archived winners
-            let base_seed = (cycle as u64 * 1000) + start.elapsed().as_nanos() as u64;
-            let archived_insts: Vec<Vec<genlex_types::GlyphInst>> = ga.entries.iter()
-                .filter(|e| !e.instructions.is_empty())
-                .map(|e| e.instructions.clone())
-                .collect();
-            let paths = if archived_insts.is_empty() {
-                codegen::seed_inbox(inbox_path, batch_size, base_seed)
+            // Phase 1: Codegen — generate or consume batch_size programs
+            let paths = if consume_mode {
+                // CONSUME: read existing .gbin files from inbox
+                let gbin_files: Vec<String> = std::fs::read_dir(inbox_path)
+                    .unwrap()
+                    .flatten()
+                    .filter_map(|e| {
+                        let p = e.path();
+                        if p.extension().and_then(|x| x.to_str()) == Some("gbin") {
+                            Some(p.to_string_lossy().to_string())
+                        } else {
+                            None
+                        }
+                    })
+                    .take(batch_size)
+                    .collect();
+
+                if gbin_files.is_empty() {
+                    println!("[CONSUME] Inbox empty — all organisms consumed.");
+                    break;
+                }
+
+                println!("[CONSUME] Eating {} organisms from inbox", gbin_files.len());
+                gbin_files
             } else {
-                codegen::seed_inbox_with_archive(
-                    inbox_path, batch_size, base_seed, Some(&archived_insts))
+                // Normal codegen path
+                let base_seed = (cycle as u64 * 1000) + start.elapsed().as_nanos() as u64;
+                let archived_insts: Vec<Vec<genlex_types::GlyphInst>> = ga.entries.iter()
+                    .filter(|e| !e.instructions.is_empty())
+                    .map(|e| e.instructions.clone())
+                    .collect();
+                if archived_insts.is_empty() {
+                    codegen::seed_inbox(inbox_path, batch_size, base_seed)
+                } else {
+                    codegen::seed_inbox_with_archive(
+                        inbox_path, batch_size, base_seed, Some(&archived_insts))
+                }
             };
             total_programs += paths.len() as u64;
 
@@ -822,7 +858,12 @@ fn main() {
                         match gpu.evaluate_batch(&inst_vecs, max_len) {
                             Ok(results) => {
                                 for (org, &result) in population.iter_mut().zip(results.iter()) {
-                                    org.fitness = result.abs();
+                                    if resonance_mode {
+                                        let delta = (result - SOVEREIGN_ANCHOR).abs();
+                                        org.fitness = 1.0 / (delta + 1e-12);
+                                    } else {
+                                        org.fitness = result.abs();
+                                    }
                                     org.generation = gidx;
                                 }
                             }
@@ -844,7 +885,12 @@ fn main() {
                             let gbin = build_gbin(&org.instructions);
                             if let Ok(mut prog) = GlyphProgram::from_gbin(&gbin) {
                                 let result = prog.execute_cpu();
-                                org.fitness = result.abs();
+                                if resonance_mode {
+                                    let delta = (result - SOVEREIGN_ANCHOR).abs();
+                                    org.fitness = 1.0 / (delta + 1e-12);
+                                } else {
+                                    org.fitness = result.abs();
+                                }
                                 org.generation = gidx;
                             }
                         }
@@ -917,8 +963,24 @@ fn main() {
         // Final report
         println!();
         println!("════════════════════════════════════════════════════════════════");
-        println!("  IGNITION COMPLETE");
-        println!("  Total programs generated:  {}", total_programs);
+        if resonance_mode {
+            println!("  RESONANCE SEARCH COMPLETE");
+            // Find the organism closest to SOVEREIGN_ANCHOR
+            if let Some(best_entry) = ga.entries.iter()
+                .filter(|e| e.fitness.is_finite() && e.fitness > 0.0)
+                .max_by(|a, b| a.fitness.partial_cmp(&b.fitness).unwrap_or(std::cmp::Ordering::Equal))
+            {
+                let delta = 1.0 / (best_entry.fitness + 1e-12) ;
+                println!("  CLOSEST TO ANCHOR:");
+                println!("    Target:     {:.15}", SOVEREIGN_ANCHOR);
+                println!("    Delta:      {:.15}", delta);
+                println!("    Fitness:    {:.4} (1/delta)", best_entry.fitness);
+                println!("    Generation: {}", best_entry.generation);
+            }
+        } else {
+            println!("  IGNITION COMPLETE");
+        }
+        println!("  Total programs consumed:   {}", total_programs);
         println!("  Total archived:            {}", total_archived);
         println!("  Total time:                {:.2}s", start.elapsed().as_secs_f64());
         println!("  Programs/sec:              {:.1}",
@@ -945,24 +1007,85 @@ fn main() {
 
         let target_path = std::path::Path::new(&forge_target);
         if target_path.is_dir() {
-            // Forge entire directory
+            // Forge entire directory tree (recursive)
             let mut count = 0;
-            for entry in std::fs::read_dir(target_path).unwrap() {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if path.is_file() {
-                    let content = std::fs::read_to_string(&path).unwrap_or_default();
-                    let label = path.file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("unknown");
-                    match vf.forge_source(&content, label, output_path) {
-                        Ok(_) => count += 1,
-                        Err(e) => eprintln!("  [SKIP] {:?}: {}", path, e),
+            let mut skipped = 0;
+            let mut total_bytes = 0usize;
+            let source_exts = ["rs", "py", "cu", "glx", "md", "txt", "json", "html", "toml"];
+
+            fn walk_dir(
+                dir: &std::path::Path,
+                vf: &mut forge::VolumetricForge,
+                output: &std::path::Path,
+                exts: &[&str],
+                count: &mut usize,
+                skipped: &mut usize,
+                total_bytes: &mut usize,
+            ) {
+                let entries = match std::fs::read_dir(dir) {
+                    Ok(e) => e,
+                    Err(_) => return,
+                };
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let name = path.file_name()
+                        .and_then(|n| n.to_str())
+                        .unwrap_or("");
+
+                    // Skip build artifacts, caches, binaries
+                    if name.starts_with('.') || name == "target"
+                        || name == "node_modules" || name == "__pycache__"
+                        || name.ends_with(".exe") || name.ends_with(".pdb")
+                        || name.ends_with(".dll") || name.ends_with(".bin")
+                        || name.ends_with(".img") || name.ends_with(".pkg")
+                    {
+                        continue;
+                    }
+
+                    if path.is_dir() {
+                        walk_dir(&path, vf, output, exts, count, skipped, total_bytes);
+                    } else if path.is_file() {
+                        let ext = path.extension()
+                            .and_then(|e| e.to_str())
+                            .unwrap_or("");
+                        // Skip if not a source extension or too large (>512KB)
+                        let size = path.metadata().map(|m| m.len()).unwrap_or(0);
+                        if !exts.contains(&ext) || size > 512_000 {
+                            *skipped += 1;
+                            continue;
+                        }
+                        let content = std::fs::read_to_string(&path).unwrap_or_default();
+                        if content.is_empty() {
+                            *skipped += 1;
+                            continue;
+                        }
+                        // Label = relative path with underscores
+                        let label = path.strip_prefix(dir)
+                            .unwrap_or(&path)
+                            .to_string_lossy()
+                            .replace(std::path::MAIN_SEPARATOR, "_")
+                            .replace('.', "_");
+                        match vf.forge_source(&content, &label, output) {
+                            Ok(_) => {
+                                *count += 1;
+                                *total_bytes += size as usize;
+                            }
+                            Err(e) => {
+                                eprintln!("  [SKIP] {:?}: {}", path, e);
+                                *skipped += 1;
+                            }
+                        }
                     }
                 }
             }
+
+            walk_dir(target_path, &mut vf, output_path, &source_exts,
+                &mut count, &mut skipped, &mut total_bytes);
             println!();
-            println!("[FORGE-21] Directory strike complete. {} files forged.", count);
+            println!("[FORGE-21] RECURSIVE STRIKE COMPLETE");
+            println!("  Forged:   {} files ({:.2} MB source)",
+                count, total_bytes as f64 / 1_048_576.0);
+            println!("  Skipped:  {} files", skipped);
         } else if target_path.is_file() {
             // Forge single file
             let content = std::fs::read_to_string(target_path)
