@@ -34,12 +34,17 @@ impl GlyphProgram {
         Ok(GlyphProgram { instructions, header, registers: [0.0_f32; 16] })
     }
 
-    /// Execute on CPU
+    /// Execute on CPU (with cycle limit to prevent infinite loops)
     pub fn execute_cpu(&mut self) -> f32 {
         let mut pc: usize = 0;
         let mut flag: bool = false;
+        let mut cycles: u32 = 0;
+        const MAX_CYCLES: u32 = 10_000;
 
         while pc < self.instructions.len() {
+            cycles += 1;
+            if cycles > MAX_CYCLES { break; }
+
             let inst = self.instructions[pc];
             let a = (inst.reg_a as usize) & 0x0F;  // clamp to 0-15
             let b = (inst.reg_b as usize) & 0x0F;

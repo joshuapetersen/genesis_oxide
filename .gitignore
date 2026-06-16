@@ -1,4 +1,4 @@
-﻿/target/
+/target/
 *.exe
 *.dll
 *.so
@@ -14,4 +14,6 @@ genetic_archive.dat
 genetic_archive.instructions
 genetic_archive.meta.json
 will_inbox/processed/
+will_inbox/
+genesis_oxide_manifest.py
 Cargo.lock
