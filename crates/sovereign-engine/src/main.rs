@@ -1246,6 +1246,12 @@ fn main() {
         println!("[N-LP] Query latency: {:.1}ms ({} organisms searched)",
             query_ms, ga.entries.len());
 
+        // Autopoietic feedback loop: if drift detected, forge the query
+        if !result.verified && args.iter().any(|s| s == "--autopoiesis") {
+            println!();
+            nlp::SovereignNlp::autopoietic_reforge(&query_text, &result);
+        }
+
         // Interactive mode: keep querying
         if args.iter().any(|s| s == "--interactive") {
             use std::io::{self, BufRead, Write};
