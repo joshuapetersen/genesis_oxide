@@ -38,6 +38,7 @@ mod forge;
 mod nlp;
 mod ace;
 mod crawler;
+mod sandbox;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -1268,6 +1269,37 @@ fn main() {
         println!();
         println!("[N-LP] Query latency: {:.1}ms | ACE latency: {:.3}ms | Total: {:.1}ms ({} organisms)",
             query_ms, ace_ms, query_ms + ace_ms, ga.entries.len());
+
+        // ── SANDBOX TELEMETRY ──
+        if args.iter().any(|s| s == "--sandbox") {
+            let action_str = match intent.primary.as_str() {
+                "PUSH" => "INITIATE", "SYNC" => "RESONATE", "ASSERT" => "VERIFY",
+                "GATE" => "VALIDATE", "MATH" => "COMPUTE", "CALL" => "DISPATCH",
+                _ => "EXECUTE"
+            };
+            let telemetry = sandbox::SandboxTelemetry {
+                query: query_text.clone(),
+                intent_primary: intent.primary.clone(),
+                intent_secondary: intent.secondary.clone().unwrap_or_default(),
+                intent_action: action_str.to_string(),
+                intent_confidence: intent.confidence,
+                query_vector: result.query_vector.to_vec(),
+                nlp_result: result.clone(),
+                ace_tokens: tokens.clone(),
+                triangulation: triangulation.clone(),
+                validation: validation.clone(),
+                ace_receipt: if validation.valid {
+                    hypervisor.sign_result(&result)
+                } else {
+                    String::new()
+                },
+                query_ms,
+                ace_ms,
+                archive_size: ga.entries.len(),
+            };
+            telemetry.write_json(std::path::Path::new("sandbox_telemetry.json"));
+            println!("[SANDBOX] Telemetry written to sandbox_telemetry.json");
+        }
 
         // Autopoietic feedback loop: if drift detected, forge the query
         if !result.verified && args.iter().any(|s| s == "--autopoiesis") {
