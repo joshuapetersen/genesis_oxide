@@ -34,6 +34,7 @@ mod sector29;
 mod skva;
 mod codegen;
 mod gpu_dispatch;
+mod forge;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -750,6 +751,10 @@ fn main() {
             }
         };
 
+        // Initialize SKVA bridge for context braid storage
+        let mut skva = skva::SKVABridge::new();
+        skva.register_braid("IGNITION_MASTER", 57);
+
         for cycle in 0..cycles {
             println!();
             println!("┌─ CYCLE {}/{} ──────────────────────────────────────────┐", cycle + 1, cycles);
@@ -883,6 +888,15 @@ fn main() {
                             println!("  [ARCHIVED] #{} fitness={:.4} gen={}",
                                 idx, best.fitness, best.generation);
                             total_archived += 1;
+
+                            // Store as SKVA context braid
+                            let braid_id = format!("ORG_{}", idx);
+                            let vector_57d: Vec<f64> = ga.entries[idx].vector.iter()
+                                .map(|&v| v as f64)
+                                .collect();
+                            skva.store_context(&braid_id, vector_57d);
+                            skva.update_resonance(&braid_id,
+                                (best.fitness as f64).log10() / 38.0); // normalize to [0,1]
                         }
                         Err(_) => {} // duplicate or below threshold
                     }
@@ -912,6 +926,70 @@ fn main() {
         println!("════════════════════════════════════════════════════════════════");
 
         ga.print_summary();
+        return;
+    }
+
+    // ── FORGE MODE (Engine 21 — Volumetric Forge) ──
+    if let Some(forge_target) = find_arg(&args, "--forge") {
+        let output_dir = find_arg(&args, "--output")
+            .unwrap_or_else(|| "will_inbox".to_string());
+        let output_path = std::path::Path::new(&output_dir);
+
+        println!("════════════════════════════════════════════════════════════════");
+        println!("  ENGINE 21: VOLUMETRIC FORGE");
+        println!("  Source:  {}", forge_target);
+        println!("  Output:  {:?}", output_path);
+        println!("════════════════════════════════════════════════════════════════");
+
+        let mut vf = forge::VolumetricForge::new();
+
+        let target_path = std::path::Path::new(&forge_target);
+        if target_path.is_dir() {
+            // Forge entire directory
+            let mut count = 0;
+            for entry in std::fs::read_dir(target_path).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if path.is_file() {
+                    let content = std::fs::read_to_string(&path).unwrap_or_default();
+                    let label = path.file_stem()
+                        .and_then(|s| s.to_str())
+                        .unwrap_or("unknown");
+                    match vf.forge_source(&content, label, output_path) {
+                        Ok(_) => count += 1,
+                        Err(e) => eprintln!("  [SKIP] {:?}: {}", path, e),
+                    }
+                }
+            }
+            println!();
+            println!("[FORGE-21] Directory strike complete. {} files forged.", count);
+        } else if target_path.is_file() {
+            // Forge single file
+            let content = std::fs::read_to_string(target_path)
+                .map_err(|e| format!("Read: {}", e)).unwrap();
+            let label = target_path.file_stem()
+                .and_then(|s| s.to_str())
+                .unwrap_or("unknown");
+            match vf.forge_source(&content, label, output_path) {
+                Ok(r) => {
+                    println!();
+                    println!("[FORGE-21] Forged: {} → {} ({} inst)",
+                        forge_target, r.gbin_path, r.instruction_count);
+                }
+                Err(e) => eprintln!("[FORGE-21] FAILED: {}", e),
+            }
+        } else {
+            // Treat as raw assembly source string
+            match vf.forge_source(&forge_target, "cli_input", output_path) {
+                Ok(r) => {
+                    println!("[FORGE-21] Inline forge: {} ({} inst)",
+                        r.gbin_path, r.instruction_count);
+                }
+                Err(e) => eprintln!("[FORGE-21] FAILED: {}", e),
+            }
+        }
+
+        vf.print_status();
         return;
     }
 

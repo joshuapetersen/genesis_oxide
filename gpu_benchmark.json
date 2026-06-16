@@ -1,0 +1,719 @@
+﻿{
+  "archive_version": 1,
+  "sovereign_anchor": 1.092777,
+  "total_entries": 79,
+  "entries": [
+    {
+      "index": 0,
+      "fitness": 35694328000000000000000000,
+      "generation": 29,
+      "cycles": 21,
+      "num_instructions": 22,
+      "signature": "0x2DAC93D5647C98A9",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 1,
+      "fitness": 34206.234,
+      "generation": 27,
+      "cycles": 17,
+      "num_instructions": 17,
+      "signature": "0x725D5714B4FAE953",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 2,
+      "fitness": 44666850000000000000000000000000000000,
+      "generation": 25,
+      "cycles": 9,
+      "num_instructions": 19,
+      "signature": "0xCC8A3689D842843B",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 3,
+      "fitness": 41988686000,
+      "generation": 29,
+      "cycles": 12,
+      "num_instructions": 18,
+      "signature": "0x819E4AF0D02ED0B6",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 4,
+      "fitness": 5739998400000000000000000,
+      "generation": 29,
+      "cycles": 22,
+      "num_instructions": 17,
+      "signature": "0xE9EF2EB9221D0484",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 5,
+      "fitness": 12002348000,
+      "generation": 23,
+      "cycles": 13,
+      "num_instructions": 16,
+      "signature": "0x0D77057233187BCF",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 6,
+      "fitness": 68411090000000000000000000000000000000,
+      "generation": 24,
+      "cycles": 10,
+      "num_instructions": 21,
+      "signature": "0x2A250C53A90D972D",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 7,
+      "fitness": 14203581000000,
+      "generation": 28,
+      "cycles": 18,
+      "num_instructions": 14,
+      "signature": "0x2A41D9BA1E2BF6B9",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 8,
+      "fitness": 245137560000000000000000000000000000000,
+      "generation": 26,
+      "cycles": 13,
+      "num_instructions": 22,
+      "signature": "0xD81A568C15035432",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 9,
+      "fitness": 658157300000000000000,
+      "generation": 28,
+      "cycles": 23,
+      "num_instructions": 22,
+      "signature": "0x8690108B2E215A35",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 10,
+      "fitness": 10025762400000000000000000000000000000,
+      "generation": 29,
+      "cycles": 5,
+      "num_instructions": 24,
+      "signature": "0x10A49327C6C94407",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 11,
+      "fitness": 31618083000000000,
+      "generation": 26,
+      "cycles": 20,
+      "num_instructions": 17,
+      "signature": "0x367E0E662312E8C1",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 12,
+      "fitness": 784507200000000,
+      "generation": 29,
+      "cycles": 18,
+      "num_instructions": 16,
+      "signature": "0xFCAAFBC6A6DD7850",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 13,
+      "fitness": 22329825000,
+      "generation": 26,
+      "cycles": 18,
+      "num_instructions": 18,
+      "signature": "0x29B3EEA8D0CA3F66",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 14,
+      "fitness": 162606660000000000000000000000000000000,
+      "generation": 27,
+      "cycles": 4,
+      "num_instructions": 19,
+      "signature": "0xFB5A8DD66FCFA94F",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 15,
+      "fitness": 21456100000000,
+      "generation": 29,
+      "cycles": 16,
+      "num_instructions": 12,
+      "signature": "0x533D8DE632D8DE06",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 16,
+      "fitness": 156217270000000000000000000000000000000,
+      "generation": 26,
+      "cycles": 15,
+      "num_instructions": 22,
+      "signature": "0x07CB4324158FD49C",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 17,
+      "fitness": 868340.4,
+      "generation": 27,
+      "cycles": 18,
+      "num_instructions": 17,
+      "signature": "0x6DDCAA39D64D255A",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 18,
+      "fitness": 138040170000000000000000000000000000000,
+      "generation": 29,
+      "cycles": 17,
+      "num_instructions": 25,
+      "signature": "0xD250AB7D99688932",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 19,
+      "fitness": 6908461300000000,
+      "generation": 19,
+      "cycles": 12,
+      "num_instructions": 17,
+      "signature": "0xF6298195F45EDC25",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 20,
+      "fitness": 697287300000000,
+      "generation": 29,
+      "cycles": 14,
+      "num_instructions": 15,
+      "signature": "0x447346FEAC78E125",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 21,
+      "fitness": 1690369,
+      "generation": 28,
+      "cycles": 19,
+      "num_instructions": 19,
+      "signature": "0x3062D2081352FF5D",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 22,
+      "fitness": 162606660000000000000000000000000000000,
+      "generation": 22,
+      "cycles": 2,
+      "num_instructions": 19,
+      "signature": "0x4BD2EA469ECFBEFA",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 23,
+      "fitness": 17271853000000000,
+      "generation": 29,
+      "cycles": 20,
+      "num_instructions": 17,
+      "signature": "0x16398EF83A59F1F3",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 24,
+      "fitness": 6447688000000000000000000000000000000,
+      "generation": 29,
+      "cycles": 13,
+      "num_instructions": 22,
+      "signature": "0x8F8AA8B62F55FE98",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 25,
+      "fitness": 20752670,
+      "generation": 28,
+      "cycles": 18,
+      "num_instructions": 20,
+      "signature": "0x78415B02352D5028",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 26,
+      "fitness": 256951760000000000000000000,
+      "generation": 28,
+      "cycles": 20,
+      "num_instructions": 24,
+      "signature": "0xC9DF47EE94BE1AA7",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 27,
+      "fitness": 6009335700000000,
+      "generation": 26,
+      "cycles": 14,
+      "num_instructions": 17,
+      "signature": "0x840EFBE2BA35E775",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 28,
+      "fitness": 182087020000000000000000,
+      "generation": 28,
+      "cycles": 21,
+      "num_instructions": 18,
+      "signature": "0x17C7F8938079E3E5",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 29,
+      "fitness": 3142535600000000000,
+      "generation": 28,
+      "cycles": 14,
+      "num_instructions": 17,
+      "signature": "0x28442EC2C45A0EEF",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 30,
+      "fitness": 61276116000000000000000000000000000000,
+      "generation": 24,
+      "cycles": 1,
+      "num_instructions": 19,
+      "signature": "0x28AFC3E2691A0041",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 31,
+      "fitness": 9927851000,
+      "generation": 27,
+      "cycles": 15,
+      "num_instructions": 19,
+      "signature": "0x15A5A8FE05D7F2CC",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 32,
+      "fitness": 245665640000000000000000000000000000000,
+      "generation": 29,
+      "cycles": 10,
+      "num_instructions": 22,
+      "signature": "0x1DCF4DE7B3A98914",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 33,
+      "fitness": 2635527500000000,
+      "generation": 29,
+      "cycles": 20,
+      "num_instructions": 15,
+      "signature": "0xB7616B214BE06647",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 34,
+      "fitness": 133239230000000000000000000000000000000,
+      "generation": 20,
+      "cycles": 11,
+      "num_instructions": 22,
+      "signature": "0x823EDD0BEAE13D94",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 35,
+      "fitness": 410231740,
+      "generation": 28,
+      "cycles": 16,
+      "num_instructions": 17,
+      "signature": "0x98773C09355903CF",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 36,
+      "fitness": 126362170,
+      "generation": 26,
+      "cycles": 11,
+      "num_instructions": 14,
+      "signature": "0xD6D6BB8E5BF47876",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 37,
+      "fitness": 4621358700000000000000000,
+      "generation": 27,
+      "cycles": 18,
+      "num_instructions": 20,
+      "signature": "0x90AAB9200E8178F3",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 38,
+      "fitness": 162606660000000000000000000000000000000,
+      "generation": 28,
+      "cycles": 3,
+      "num_instructions": 19,
+      "signature": "0xC13F01015585EA6D",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 39,
+      "fitness": 74448788000000000000000000000,
+      "generation": 29,
+      "cycles": 19,
+      "num_instructions": 23,
+      "signature": "0x82AAFD2AEEC761C6",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 40,
+      "fitness": 451864840000000000000000000,
+      "generation": 29,
+      "cycles": 10,
+      "num_instructions": 22,
+      "signature": "0x6EAFABBE4B0EECA5",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 41,
+      "fitness": 30554.563,
+      "generation": 29,
+      "cycles": 19,
+      "num_instructions": 19,
+      "signature": "0x8C98F9A05075401E",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 42,
+      "fitness": 585549300000000,
+      "generation": 27,
+      "cycles": 12,
+      "num_instructions": 21,
+      "signature": "0x02FF30FAA4F91917",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 43,
+      "fitness": 74156196000,
+      "generation": 27,
+      "cycles": 10,
+      "num_instructions": 17,
+      "signature": "0xD2EFDB9E407B01B8",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 44,
+      "fitness": 9509221000000,
+      "generation": 29,
+      "cycles": 16,
+      "num_instructions": 20,
+      "signature": "0xC0A29B7A4318EDA3",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 45,
+      "fitness": 21346296,
+      "generation": 28,
+      "cycles": 17,
+      "num_instructions": 16,
+      "signature": "0x80ABBAA73941E9F0",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 46,
+      "fitness": 162606660000000000000000000000000000000,
+      "generation": 26,
+      "cycles": 5,
+      "num_instructions": 19,
+      "signature": "0xC0EA26E2D75F8A78",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 47,
+      "fitness": 344002620000000,
+      "generation": 29,
+      "cycles": 16,
+      "num_instructions": 18,
+      "signature": "0x319FC2B5FAA0BCD4",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 48,
+      "fitness": 276276520000000000000000000000000000000,
+      "generation": 22,
+      "cycles": 12,
+      "num_instructions": 22,
+      "signature": "0x3F3C2848525718B9",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 49,
+      "fitness": 12100.533,
+      "generation": 29,
+      "cycles": 16,
+      "num_instructions": 15,
+      "signature": "0xD08B514166830650",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 50,
+      "fitness": 2708185400000000000000000000000000,
+      "generation": 27,
+      "cycles": 12,
+      "num_instructions": 25,
+      "signature": "0x528DF5003A08F043",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 51,
+      "fitness": 4433265000000000,
+      "generation": 28,
+      "cycles": 17,
+      "num_instructions": 17,
+      "signature": "0x9081058B268B85E2",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 52,
+      "fitness": 28088425000000000,
+      "generation": 29,
+      "cycles": 20,
+      "num_instructions": 17,
+      "signature": "0xED91C51EFAC95F09",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 53,
+      "fitness": 19064.984,
+      "generation": 29,
+      "cycles": 19,
+      "num_instructions": 21,
+      "signature": "0x477C2979792EAB78",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 54,
+      "fitness": 3899368700,
+      "generation": 27,
+      "cycles": 18,
+      "num_instructions": 18,
+      "signature": "0x7E61EE2C6232F181",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 55,
+      "fitness": 205249180000000000000000000000000000000,
+      "generation": 25,
+      "cycles": 10,
+      "num_instructions": 22,
+      "signature": "0x72543F5B33528831",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 56,
+      "fitness": 84420810,
+      "generation": 28,
+      "cycles": 19,
+      "num_instructions": 19,
+      "signature": "0xB2612838013A57D2",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 57,
+      "fitness": 246436300000000000000,
+      "generation": 29,
+      "cycles": 14,
+      "num_instructions": 22,
+      "signature": "0x6B4AC500E6A31FB5",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 58,
+      "fitness": 856022460,
+      "generation": 28,
+      "cycles": 13,
+      "num_instructions": 17,
+      "signature": "0xF2370EBA7134C0EB",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 59,
+      "fitness": 457405420000000000000,
+      "generation": 22,
+      "cycles": 15,
+      "num_instructions": 20,
+      "signature": "0xA7CA6F1CE1EBA007",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 60,
+      "fitness": 67761.44,
+      "generation": 28,
+      "cycles": 20,
+      "num_instructions": 15,
+      "signature": "0x0618CA339AE78A38",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 61,
+      "fitness": 129528070000000000000000000000000000000,
+      "generation": 28,
+      "cycles": 2,
+      "num_instructions": 19,
+      "signature": "0x788E5D4C5FEC0483",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 62,
+      "fitness": 5720266000000000,
+      "generation": 28,
+      "cycles": 20,
+      "num_instructions": 22,
+      "signature": "0x57AFC2F3A6F416BC",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 63,
+      "fitness": 172064080000000000000000000000000000000,
+      "generation": 27,
+      "cycles": 11,
+      "num_instructions": 22,
+      "signature": "0x3DE22FEE2DA38133",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 64,
+      "fitness": 212766380,
+      "generation": 28,
+      "cycles": 24,
+      "num_instructions": 16,
+      "signature": "0x3DC80AD5447101B4",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 65,
+      "fitness": 9403708500000000000000000000000000000,
+      "generation": 3,
+      "cycles": 1,
+      "num_instructions": 19,
+      "signature": "0xB9F203481D20FEC5",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 66,
+      "fitness": 8901449300000000000,
+      "generation": 21,
+      "cycles": 12,
+      "num_instructions": 17,
+      "signature": "0x6087F5EB1B41886F",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 67,
+      "fitness": 5711610.5,
+      "generation": 28,
+      "cycles": 15,
+      "num_instructions": 17,
+      "signature": "0xF989BCD828CB8809",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 68,
+      "fitness": 1737966700000000,
+      "generation": 28,
+      "cycles": 22,
+      "num_instructions": 20,
+      "signature": "0xD7027E8E30A0DC94",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 69,
+      "fitness": 122552230000000000000000000000000000000,
+      "generation": 18,
+      "cycles": 5,
+      "num_instructions": 19,
+      "signature": "0x9E79B98A2BCC8636",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 70,
+      "fitness": 85463260000,
+      "generation": 29,
+      "cycles": 25,
+      "num_instructions": 23,
+      "signature": "0x9C3BB6D56432DAC5",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 71,
+      "fitness": 19204190000000000000000000000000000000,
+      "generation": 29,
+      "cycles": 11,
+      "num_instructions": 22,
+      "signature": "0x9392A632F496BDC8",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 72,
+      "fitness": 936213100,
+      "generation": 21,
+      "cycles": 11,
+      "num_instructions": 14,
+      "signature": "0xAEBA0D39149EA8A2",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 73,
+      "fitness": 39599673000000000000000000000000000000,
+      "generation": 26,
+      "cycles": 11,
+      "num_instructions": 19,
+      "signature": "0xA972A560BA96DE3F",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 74,
+      "fitness": 19378297000000000000,
+      "generation": 23,
+      "cycles": 15,
+      "num_instructions": 17,
+      "signature": "0x0599BCD9494390F0",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 75,
+      "fitness": 10577033000000,
+      "generation": 28,
+      "cycles": 13,
+      "num_instructions": 23,
+      "signature": "0x1DB70D2757FBDDB7",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 76,
+      "fitness": 63618.855,
+      "generation": 25,
+      "cycles": 17,
+      "num_instructions": 13,
+      "signature": "0x40124098A1A8182C",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 77,
+      "fitness": 89333700000000000000000000000000000000,
+      "generation": 19,
+      "cycles": 1,
+      "num_instructions": 19,
+      "signature": "0x3E829DF4A7C4AB82",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    },
+    {
+      "index": 78,
+      "fitness": 16443321000000000,
+      "generation": 29,
+      "cycles": 22,
+      "num_instructions": 21,
+      "signature": "0xD97CF67629F1B967",
+      "source": "will_inbox\gen_0007_Mixed.gbin"
+    }
+  ]
+}
+
