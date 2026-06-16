@@ -32,6 +32,7 @@ mod will;
 mod auditor;
 mod sector29;
 mod skva;
+mod codegen;
 
 // ════════════════════════════════════════════════════════════════
 // PTX KERNELS
@@ -700,6 +701,163 @@ fn main() {
         println!("════════════════════════════════════════════════════════════════");
         println!("  SOVEREIGN ENGINE COMPLETE");
         println!("════════════════════════════════════════════════════════════════");
+        return;
+    }
+
+    // ── IGNITE MODE (Full Autonomous Loop: codegen → evolve → archive) ──
+    if args.iter().any(|s| s == "--ignite") {
+        use rand::Rng;
+        let cycles: usize = find_arg(&args, "--cycles")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(10);
+        let batch_size: usize = find_arg(&args, "--batch-size")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(8);
+        let generations: u32 = find_arg(&args, "--generations")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(50);
+        let archive_path = find_arg(&args, "--archive-path")
+            .unwrap_or_else(|| "genetic_archive.dat".to_string());
+
+        println!("════════════════════════════════════════════════════════════════");
+        println!("  SOVEREIGN IGNITION — AUTONOMOUS EVOLUTION LOOP");
+        println!("  Cycles: {} | Batch: {} | Generations/cycle: {}", cycles, batch_size, generations);
+        println!("════════════════════════════════════════════════════════════════");
+
+        let inbox_path = std::path::Path::new("will_inbox");
+        std::fs::create_dir_all(inbox_path).ok();
+
+        // Initialize archive
+        let mut ga = archive::GeneticArchive::open(
+            std::path::Path::new(&archive_path),
+        );
+
+        let mut total_programs = 0u64;
+        let mut total_archived = 0u64;
+        let mut rng = rand::thread_rng();
+        let start = std::time::Instant::now();
+
+        for cycle in 0..cycles {
+            println!();
+            println!("┌─ CYCLE {}/{} ──────────────────────────────────────────┐", cycle + 1, cycles);
+
+            // Phase 1: Codegen — generate batch_size programs
+            let base_seed = (cycle as u64 * 1000) + start.elapsed().as_nanos() as u64;
+            let paths = codegen::seed_inbox(inbox_path, batch_size, base_seed);
+            total_programs += paths.len() as u64;
+
+            // Phase 2: Evolve each program (CPU-only)
+            for path in &paths {
+                let data = match std::fs::read(path) {
+                    Ok(d) => d,
+                    Err(e) => {
+                        eprintln!("  [SKIP] {}: {}", path, e);
+                        continue;
+                    }
+                };
+
+                let base_program = match GlyphProgram::from_gbin(&data) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        eprintln!("  [SKIP] Invalid GBIN {}: {}", path, e);
+                        continue;
+                    }
+                };
+
+                // CPU-only directed evolution
+                let pop_size = 32usize;
+                let base_insts = base_program.instructions.clone();
+                let mut population: Vec<Organism> = (0..pop_size)
+                    .map(|_| Organism {
+                        instructions: base_insts.clone(),
+                        fitness: 0.0,
+                        generation: 0,
+                        cycles: 0,
+                    })
+                    .collect();
+
+                let mut best = Organism {
+                    instructions: base_insts.clone(),
+                    fitness: f32::NEG_INFINITY,
+                    generation: 0,
+                    cycles: 0,
+                };
+
+                for gidx in 0..generations {
+                    // Evaluate all organisms on CPU
+                    for org in population.iter_mut() {
+                        let gbin = build_gbin(&org.instructions);
+                        if let Ok(mut prog) = GlyphProgram::from_gbin(&gbin) {
+                            let result = prog.execute_cpu();
+                            org.fitness = result.abs();
+                            org.generation = gidx;
+                        }
+                    }
+
+                    // Sort by fitness (descending)
+                    population.sort_by(|a, b|
+                        b.fitness.partial_cmp(&a.fitness).unwrap_or(std::cmp::Ordering::Equal));
+
+                    if population[0].fitness > best.fitness {
+                        best = population[0].clone();
+                    }
+
+                    // Selection: keep top 25%, breed rest
+                    let survivors = pop_size / 4;
+                    let parents: Vec<Organism> = population[..survivors].to_vec();
+                    population.clear();
+                    for i in 0..pop_size {
+                        let parent = &parents[i % survivors];
+                        let mut child = parent.clone();
+                        if i >= survivors {
+                            direct_evolution_cycle(&mut child, &mut rng, &base_insts);
+                        }
+                        population.push(child);
+                    }
+                }
+
+                // Archive if fitness exceeds threshold
+                if best.fitness > 0.01 && best.fitness.is_finite() {
+                    match ga.archive_organism(
+                        &best.instructions,
+                        best.fitness,
+                        best.generation,
+                        best.cycles,
+                        path,
+                    ) {
+                        Ok(idx) => {
+                            println!("  [ARCHIVED] #{} fitness={:.4} gen={}",
+                                idx, best.fitness, best.generation);
+                            total_archived += 1;
+                        }
+                        Err(_) => {} // duplicate or below threshold
+                    }
+                }
+            }
+
+            // Phase 3: Clean inbox
+            for path in &paths {
+                std::fs::remove_file(path).ok();
+            }
+
+            let elapsed = start.elapsed();
+            println!("│  Programs: {} | Archived: {} | Time: {:.1}s",
+                total_programs, total_archived, elapsed.as_secs_f64());
+            println!("└──────────────────────────────────────────────────────────┘");
+        }
+
+        // Final report
+        println!();
+        println!("════════════════════════════════════════════════════════════════");
+        println!("  IGNITION COMPLETE");
+        println!("  Total programs generated:  {}", total_programs);
+        println!("  Total archived:            {}", total_archived);
+        println!("  Total time:                {:.2}s", start.elapsed().as_secs_f64());
+        println!("  Programs/sec:              {:.1}",
+            total_programs as f64 / start.elapsed().as_secs_f64().max(0.001));
+        println!("════════════════════════════════════════════════════════════════");
+
+        ga.print_summary();
         return;
     }
 
